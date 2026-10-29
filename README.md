@@ -14,6 +14,14 @@ Claude Code Hook ─► hook.js ─HTTP─► 127.0.0.1:47821 ─► Electron (M
 | **Claude-Mod `kayy-office`** (empfohlen) | Status, **Modell pro Agent**, **Kosten**, aktuelle Datei, Router (Subagent → passendes Modell), Freigaben, Pane direkt in der Claude-App |
 | **Hooks** (Tray → „Hooks installieren“) | Status, aktuelle Datei, Freigaben. Läuft auch mit der CLI ohne Mod |
 
+**Mod nutzen:** Der Quellcode liegt in `mod/kayy-office/`. Entwicklungsmodus:
+```bash
+claude --plugin-dir "C:\Users\<du>\IdeaProjects\KayyOffice\mod\kayy-office"
+```
+Danach in Claude `/office` (Pane + Status) und `/router status`. Wichtig: den alten Mod `kayy-router` **nicht** parallel laden, der neue enthält den Router. Die App muss laufen (der Mod liest `%APPDATA%\KayyOffice\config.json`); ist sie aus, tut der Mod still nichts.
+
+**Sicherheit:** Anfragen an die App sind signiert (HMAC mit Nonce), der Token geht nie über den Draht; Freigabe-Antworten gelten nur mit passendem Beweis. Der Mod gibt nie etwas frei, was Claude selbst verweigert, und ExitPlanMode/AskUserQuestion beantwortet das Overlay nie.
+
 Beides gleichzeitig ist erlaubt: sobald der Mod für eine Session meldet, ignoriert das Overlay die Hook-Events derselben Session (keine Doppelzählung).
 
 ## Erster Start

@@ -1,0 +1,194 @@
+import { atom, read, update, type EngineInterface, type Register } from 'claude-code'
+import type { AgentRow, PendingRow } from '../types'
+import { PANE_ID, approve, ioFor, shouldForward, type CheckEvent } from './approver'
+import { errorOf, fileOf, makeEvent, type EventName } from './mapping'
+import { sendEvent } from './overlay'
+import { renderPane } from './pane'
+import { aliasOf, countRoute, routeFor, routerCommand, showStatus, summary, usd } from './router'
+import { MAIN, newOffice, setAgent, type Office } from './state'
+
+const agents = atom({ plugin: 'kayy-office', key: 'agents' } as const, [] as AgentRow[], { shape: 'agents-1' })
+const pending = atom({ plugin: 'kayy-office', key: 'pending' } as const, [] as PendingRow[], { shape: 'pending-1' })
+const cost = atom({ plugin: 'kayy-office', key: 'cost' } as const, null as number | null)
+const isOff = atom({ plugin: 'kayy-office', key: 'isOff' } as const, false)
+
+const TITLE = 'Kayy Office'
+
+/** Session id and cwd, cached; throws when the session cannot say (then no event is sent). */
+async function where($: EngineInterface, office: Office) {
+  if (office.sessionId === undefined) office.sessionId = await $.session.id()
+  if (office.cwd === undefined) office.cwd = await $.session.cwd()
+  return { ts: await $.clock.now(), sessionId: office.sessionId, cwd: office.cwd }
+}
+
+/** Sends one event; any failure on the way is swallowed. */
+async function emit(
+  $: EngineInterface,
+  office: Office,
+  event: EventName,
+  agentId: string | undefined,
+  extra: Parameters<typeof makeEvent>[3] = {},
+) {
+  try {
+    const at = await where($, office)
+    const parentId = extra.parentId ?? (agentId !== undefined ? (office.spawned.get(agentId)?.parentId ?? at.sessionId) : undefined)
+    sendEvent($, office, makeEvent(at, event, agentId, { ...extra, parentId }))
+  } catch {
+    // the overlay is optional: never let it touch the session
+  }
+}
+
+async function quietly(work: Promise<unknown>) {
+  try {
+    await work
+  } catch {
+    // pane state is best effort
+  }
+}
+
+const modelOf = (office: Office, agentId: string | undefined) =>
+  agentId === undefined ? office.mainModel : office.spawned.get(agentId)?.model
+
+async function officeStatus($: EngineInterface) {
+  const list = await read($, agents)
+  const busy = list.filter(a => a.status === 'running').length
+  const asks = (await read($, pending)).length
+  const routerLine = await summary($)
+  const spent = await read($, cost)
+  return [
+    `Kayy Office: ${list.length} Agents (${busy} aktiv), ${asks} offene Freigaben.`,
+    `Kosten: ${spent === null ? 'unbekannt' : `$${spent.toFixed(2)}`}`,
+    `Router: ${routerLine}`,
+  ].join('\n')
+}
+
+async function toggleOffice($: EngineInterface) {
+  const isOpen = (await $.ui.panes()).some(p => p.id === PANE_ID)
+  if (isOpen) {
+    await $.ui.close({ id: PANE_ID })
+    return 'Kayy Office geschlossen.'
+  }
+  await $.ui.open({ id: PANE_ID, title: TITLE })
+  return 'Kayy Office geöffnet.'
+}
+
+/** Once per install: kayy-office contains the router, so kayy-router must not run beside it. */
+async function warnRouterOnce($: EngineInterface) {
+  if ((await $.store.get('routerHintShown')) === true) return
+  $.ui.toast('Kayy Office enthält den Router: kayy-router bitte nicht gleichzeitig laden (sonst doppeltes Routing).', {
+    timeoutMs: 10_000,
+  })
+  await $.store.set('routerHintShown', true)
+}
+
+export const register: Register = on => {
+  const office = newOffice()
+
+  on('session.start', async ($, e, next) => {
+    await $.command.register({ name: 'router', description: 'Model routing for subagents: /router [status|on|off]' })
+    await $.command.register({ name: 'office', description: 'Kayy Office Pane öffnen/schließen: /office [status]', argumentHint: '[status]' })
+    const started = await next(e)
+    office.sessionId = undefined
+    office.cwd = e.cwd
+    office.spawned.clear()
+    try {
+      office.mainModel = await $.session.model()
+    } catch {
+      office.mainModel = undefined
+    }
+    await quietly(update($, agents, () => [{ id: MAIN, type: 'main', status: 'idle', ...(office.mainModel ? { model: office.mainModel } : {}) }]))
+    await quietly(update($, pending, () => []))
+    const spent = await usd($)
+    if (spent !== undefined) await quietly(update($, cost, () => spent))
+    await emit($, office, 'SessionStart', undefined, { model: office.mainModel, costUsd: spent })
+    await quietly(warnRouterOnce($))
+    return started
+  }).catch(($, e, next) => next(e))
+
+  on('command.run', { command: 'router' }, ($, e) => routerCommand($, e.args))
+
+  on('command.run', { command: 'office' }, async ($, e) => {
+    const arg = e.args.trim().toLowerCase()
+    if (arg === 'status') return { text: await officeStatus($) }
+    if (arg === '') return { text: await toggleOffice($) }
+    return { text: 'Nutzung: /office [status]' }
+  })
+
+  on('tool.call', async ($, e, next) => {
+    const row = e.agentId ?? MAIN
+    const file = fileOf(e)
+    await emit($, office, 'PreToolUse', e.agentId, { tool: e.tool, file, model: modelOf(office, e.agentId) })
+    await quietly(setAgent($, row, { status: 'running', tool: e.tool, file }))
+    const ran = await next(e)
+    const message = errorOf(e.tool, ran)
+    await emit($, office, 'PostToolUse', e.agentId, { tool: e.tool, file, message, model: modelOf(office, e.agentId) })
+    await quietly(setAgent($, row, { status: 'running', tool: undefined, file: undefined }))
+    return ran
+  }).catch(($, e, next) => next(e))
+
+  // Approver: only a real call's core `ask` meant for a person is ever put to the overlay.
+  on('tool.check', async ($, e, next) => {
+    const core = await next(e)
+    if (!shouldForward(e as CheckEvent, core)) return core
+    try {
+      const at = await where($, office)
+      return await approve(ioFor($, office), e as CheckEvent, core, at.sessionId)
+    } catch {
+      return core // fall through to the normal dialog
+    }
+  }).catch(($, e, next) => next(e))
+
+  on('agent.spawn', async ($, e, next) => {
+    // A resumed subagent or woken teammate keeps its model and is not a new spawn; off means hands off.
+    const isRouting = !e.resume && !(await read($, isOff))
+    const chosen = isRouting ? await routeFor($, office, e) : undefined
+    const started = await next(chosen === undefined ? e : { ...e, model: chosen })
+    if (isRouting) {
+      await quietly(countRoute($, chosen ?? aliasOf(started.model)))
+      await quietly(showStatus($))
+    }
+    const agentId = started.agentId
+    if (started.deny === undefined && agentId !== undefined) {
+      const model = chosen ?? started.model ?? e.model
+      const at = await where($, office).catch(() => undefined)
+      const parentId = e.parentAgentId ?? at?.sessionId
+      office.spawned.set(agentId, { parentId, type: e.subagentType, model })
+      const row: Partial<AgentRow> = { parentId: e.parentAgentId ?? MAIN, type: e.subagentType, status: 'running', model }
+      await quietly(setAgent($, agentId, row))
+      await emit($, office, 'SubagentStart', agentId, { parentId, agentType: e.subagentType, model })
+    }
+    return started
+  }).catch(($, e, next) => next(e))
+
+  on('turn.complete', async ($, e, next) => {
+    await quietly(showStatus($))
+    if (e.agentId !== undefined) {
+      // A subagent's run ends in its own turn.complete carrying its agentId.
+      const known = office.spawned.get(e.agentId)
+      const failed = e.reason === 'error'
+      await emit($, office, 'SubagentStop', e.agentId, {
+        agentType: known?.type,
+        model: known?.model,
+        message: failed ? 'ERROR: subagent failed' : undefined,
+      })
+      await quietly(setAgent($, e.agentId, { status: failed ? 'error' : 'done', tool: undefined, file: undefined }))
+    } else {
+      if (e.usage?.model) office.mainModel = e.usage.model
+      await emit($, office, 'Stop', undefined, { model: office.mainModel, costUsd: await usd($) })
+      await quietly(setAgent($, MAIN, { status: 'idle', tool: undefined, file: undefined, model: office.mainModel }))
+    }
+    return next(e)
+  }).catch(($, e, next) => next(e))
+
+  on('session.end', async ($, e, next) => {
+    office.sessionId = e.sessionId
+    await emit($, office, 'SessionEnd', undefined)
+    // A /clear goes on under a new session id: forget the old one.
+    office.sessionId = undefined
+    office.spawned.clear()
+    await quietly(update($, pending, () => []))
+    return next(e)
+  }).catch(($, e, next) => next(e))
+
+  on('ui.render', { component: 'Pane', requestId: 'kayy-office' }, ($, e) => renderPane($, e, office))
+}

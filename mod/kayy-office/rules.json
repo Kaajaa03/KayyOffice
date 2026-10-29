@@ -1,0 +1,12 @@
+{
+  "byType": {
+    "Explore": "haiku",
+    "kayy-scout": "haiku",
+    "claude-code-guide": "haiku",
+    "general-purpose": "sonnet",
+    "kayy-coder": "sonnet",
+    "Plan": "opus",
+    "kayy-architect": "opus"
+  },
+  "maxPromptChars": 400
+}

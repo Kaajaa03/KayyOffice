@@ -1,7 +1,7 @@
 import { app, BrowserWindow, dialog, globalShortcut, ipcMain, Menu, nativeImage, powerSaveBlocker, shell, Tray } from 'electron';
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { writeFileSync } from 'node:fs';
+import { existsSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { loadConfig, saveConfigPort, updateConfig } from './config';
@@ -208,6 +208,8 @@ async function main(): Promise<void> {
   const configDir = join(app.getPath('appData'), 'KayyOffice');
   const config = loadConfig(configDir);
   configDirPath = configDir;
+  // keep an already staged hook in sync with this app version (protocol changes must not silently break it)
+  try { if (existsSync(join(configDir, 'hook.js'))) stageHook(hookPath(), configDir); } catch { /* best effort */ }
   eventLog = new EventLog(join(configDir, 'logs'));
   devLogDir = config.devLogDir || join(configDir, 'devlog');
   app.on('before-quit', () => eventLog.flush());

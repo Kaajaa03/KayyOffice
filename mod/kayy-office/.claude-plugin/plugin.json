@@ -1,0 +1,8 @@
+{
+  "name": "kayy-office",
+  "version": "0.1.0",
+  "description": "Kayy Office: feeds the pixel-office overlay, approves tool calls from it, routes subagents to haiku/sonnet/opus and shows agents, cost and approvals in a pane.",
+  "author": { "name": "Kaja" },
+  "license": "MIT",
+  "types": "./types/index.d.ts"
+}
