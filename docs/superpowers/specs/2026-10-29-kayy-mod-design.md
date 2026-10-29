@@ -13,7 +13,14 @@ Ein Claude-Mod `kayy-office`, der **Router + Datenquelle + Approver + Pane** in 
 
 Mod und Hooks dürfen parallel laufen: Events tragen `source: "mod"`. Sobald das Overlay für eine Session Mod-Events sieht, ignoriert es Hook-Events und Hook-Permission-Anfragen derselben Session (keine Doppelkarten/-zählungen).
 
-## Protokoll (Mod → Overlay, `http://127.0.0.1:<port>`, Header `x-kayy-token`)
+## Authentifizierung (Review-Fix C1, ersetzt den früheren Klartext-Token-Header)
+Der Token wird **nie** übertragen (ein Prozess, der den Port besetzt, würde ihn sonst lernen und Beweis/Antwort fälschen). Jede Anfrage trägt:
+- `x-kayy-nonce`: frischer Zufalls-Hex-String (16–64 Zeichen); der Server lehnt Wiederverwendung ab (begrenzter Nonce-Cache).
+- `x-kayy-auth` = HMAC-SHA256(Token, `"req|" + nonce + "|" + path + "|" + body`) als Hex (`path` = `/event` oder `/permission`, `body` = exakt gesendeter JSON-String).
+- `/permission`-Antwort: Header `x-kayy-proof` = HMAC-SHA256(Token, `"res|" + nonce + "|" + decision`). Der Client akzeptiert `allow`/`deny` nur mit passendem Beweis **für genau diese Entscheidung**, sonst gilt `ask`.
+Umsetzung: `src/main/auth.ts` (Server), `hook/hook.js`, Mod `overlay.ts`.
+
+## Protokoll (Mod → Overlay, `http://127.0.0.1:<port>`, signiert wie oben; kein `x-kayy-token`-Header mehr)
 Token und Port stehen in `%APPDATA%\KayyOffice\config.json` (`{ token, port }`). Fehlt die Datei oder ist die App aus: still nichts tun (Fehler schlucken, nie Claude behindern, kein Retry-Sturm: nach Fehlschlag 30 s pausieren).
 
 ### `POST /event` – JSON `AgentEvent`

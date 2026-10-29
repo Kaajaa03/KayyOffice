@@ -22,7 +22,7 @@ export class SourceGate {
   }
 
   acceptPermission(p: Pick<PermissionPayload, 'sessionId' | 'source'>): boolean {
-    if (p.source === 'mod') return true;
+    if (p.source === 'mod') { this.modSeen.set(p.sessionId, this.now()); return true; } // mod is alive even if its events were dropped
     return !this.modActive(p.sessionId);
   }
 }

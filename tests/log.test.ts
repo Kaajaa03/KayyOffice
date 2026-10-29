@@ -52,6 +52,15 @@ describe('EventLog', () => {
     const b = new EventLog(dir);
     expect(b.day(DATE).perAgent.coder).toMatchObject({ toolCalls: 1, activeMs: 2000 });
   });
+  it('does not persist message text (may contain secrets) in the JSONL', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'kayy-log-'));
+    const l = new EventLog(dir);
+    l.append(ev({ event: 'PostToolUse', message: 'ERROR: Authorization: Bearer abc123' }));
+    l.flush();
+    const raw = readFileSync(join(dir, `${DATE}.jsonl`), 'utf8');
+    expect(raw).not.toContain('abc123');
+    expect(raw).not.toContain('message');
+  });
   it('returns an empty summary for a day without data', () => {
     expect(new EventLog(null).day('2020-01-01')).toEqual({ date: '2020-01-01', perAgent: {} });
   });

@@ -8,6 +8,23 @@ Pixel-Büro-Overlay für **Claude-Code-Agents** unter Windows (inspiriert von Lu
 Claude Code Hook ─► hook.js ─HTTP─► 127.0.0.1:47821 ─► Electron (Main) ─IPC─► Canvas-Büro
 ```
 
+## Zwei Wege, Agents anzuschließen
+| Weg | Was du bekommst |
+|---|---|
+| **Claude-Mod `kayy-office`** (empfohlen) | Status, **Modell pro Agent**, **Kosten**, aktuelle Datei, Router (Subagent → passendes Modell), Freigaben, Pane direkt in der Claude-App |
+| **Hooks** (Tray → „Hooks installieren“) | Status, aktuelle Datei, Freigaben. Läuft auch mit der CLI ohne Mod |
+
+Beides gleichzeitig ist erlaubt: sobald der Mod für eine Session meldet, ignoriert das Overlay die Hook-Events derselben Session (keine Doppelzählung).
+
+## Erster Start
+Beim ersten Start öffnet sich ein **Willkommensfenster** (später: Tray → „Willkommen / Hilfe“) mit drei Schritten: Verbinden, **Demo ansehen** (15 s), Bedienung. Das Büro selbst erscheint erst, wenn Agents arbeiten; nach dem Start zeigt eine kleine Pille oben kurz „läuft · wartet auf Agents“.
+
+## Am Schreibtisch
+Farbiger Chip = Modell (**H**aiku, **S**onnet, **O**pus, **F**able), darunter Name und Status; bei Edit/Write steht der **Dateiname** da. Fußzeile: Anzahl, aktiv, wartend, Session-Kosten.
+
+## Blast Radius (Freigabe-Karte)
+Bei gefährlichen Befehlen (`rm -rf`, `Remove-Item -Recurse`, `git reset --hard`, `git push --force`, `git clean -f`, `curl … | bash`, `DROP TABLE`, `format X:`) zeigt die Karte eine rote Warnzeile mit Ziel und der Allow-Knopf wird erst nach 1,5 s klickbar. Rein lokal, kein LLM.
+
 ## Ressourcen (gemessen mit `npm run perf`)
 | | CPU | RAM (private, alle Prozesse) |
 |---|---|---|
@@ -48,4 +65,4 @@ npm run dist         # Installer + Portable nach release/
 Demo ohne Agents: `electron . --demo` (optional `--screenshot=out.png`).
 
 ## Roadmap
-Weitere Tools (Codex, Cursor) als Adapter, Tauri-Portierung für noch weniger RAM, Antworten aus dem Overlay.
+Orchestrator-Mod (Chats sprechen miteinander, mit Turn-Limit), weitere Tools (Codex, Cursor) als Adapter, Tauri-Portierung für noch weniger RAM, Antworten aus dem Overlay.

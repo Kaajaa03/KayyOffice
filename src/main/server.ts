@@ -1,5 +1,5 @@
-import { createHmac } from 'node:crypto';
 import http from 'node:http';
+import { NonceCache, responseProof, verifyAuth } from './auth';
 import type { AddressInfo } from 'node:net';
 import { MAX_BODY_BYTES, parseEvent } from './validate';
 import type { AgentEvent, PermissionDecision, PermissionPayload } from '../shared/types';
@@ -54,15 +54,21 @@ function parsePermission(raw: unknown): PermissionPayload | null {
 }
 
 export function startServer(opts: ServerOptions): Promise<RunningServer> {
+  const nonces = new NonceCache();
   const server = http.createServer((req, res) => {
     const route = req.url;
     if (req.method !== 'POST' || (route !== '/event' && route !== '/permission')) return void res.writeHead(404).end();
-    if (req.headers['x-kayy-token'] !== opts.token) return void res.writeHead(401).end();
 
     readBody(req, res, (body) => {
+      // Signed request (see auth.ts): the token itself never goes over the wire.
+      const bodyText = body.toString('utf8');
+      const nonce = req.headers['x-kayy-nonce'];
+      if (!verifyAuth(opts.token, nonce, req.headers['x-kayy-auth'], route, bodyText) || !nonces.useOnce(nonce as string)) {
+        return void res.writeHead(401).end();
+      }
       let parsed: unknown;
       try {
-        parsed = JSON.parse(body.toString('utf8'));
+        parsed = JSON.parse(bodyText);
       } catch {
         return void res.writeHead(400).end();
       }
@@ -76,15 +82,14 @@ export function startServer(opts: ServerOptions): Promise<RunningServer> {
 
       const payload = parsePermission(parsed);
       if (!payload) return void res.writeHead(400).end();
-      // The hook trusts a decision only if the server proves it knows the token (HMAC of the hook's
-      // nonce), so another local process squatting on the port cannot auto-approve tool calls.
-      const nonce = req.headers['x-kayy-nonce'];
-      const headers: Record<string, string> = { 'content-type': 'application/json' };
-      if (typeof nonce === 'string' && nonce.length <= 128) {
-        headers['x-kayy-proof'] = createHmac('sha256', opts.token).update(nonce).digest('hex');
-      }
+      // The client trusts a decision only with a proof that binds nonce AND decision and needs the
+      // token, so a process squatting on the port cannot forge an allow.
       const reply = (decision: PermissionDecision) => {
-        if (!res.writableEnded) res.writeHead(200, headers).end(JSON.stringify({ decision }));
+        if (res.writableEnded) return;
+        res.writeHead(200, {
+          'content-type': 'application/json',
+          'x-kayy-proof': responseProof(opts.token, nonce as string, decision),
+        }).end(JSON.stringify({ decision }));
       };
       if (!opts.onPermission) return reply('ask');
       const ac = new AbortController();

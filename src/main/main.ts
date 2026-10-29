@@ -286,7 +286,7 @@ async function main(): Promise<void> {
   const shot = flagValue('screenshot');
   if (flag('welcome')) openWelcome();
   if (shot) await screenshotAndQuit(shot);
-  else if (!perf && !flag('demo') && !config.welcomeShown) {
+  else if (!perf && !flag('demo') && !flag('no-welcome') && !config.welcomeShown) {
     openWelcome();
     updateConfig(configDir, { welcomeShown: true });
   }

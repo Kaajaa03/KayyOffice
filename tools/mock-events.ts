@@ -1,6 +1,8 @@
 // Sends fake Claude Code events to the running Kayy Office app.
 // Usage: npm run mock -- <single|team|permission|error|cleanup>   (MOCK_SECONDS=60)
+import { randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { requestAuth } from '../src/main/auth';
 import { join } from 'node:path';
 import type { AgentEvent, EventName } from '../src/shared/types';
 
@@ -22,9 +24,14 @@ const rnd = (a: number, b: number) => a + Math.random() * (b - a);
 const pick = <T,>(xs: readonly T[]) => xs[Math.floor(Math.random() * xs.length)];
 
 async function send(e: Partial<AgentEvent> & { event: EventName; sessionId: string }): Promise<void> {
-  const body: AgentEvent = { ts: Date.now(), agentId: e.sessionId, cwd: 'C:\\dev\\mock', ...e };
+  const body = JSON.stringify({ ts: Date.now(), agentId: e.sessionId, cwd: 'C:\\dev\\mock', ...e } satisfies AgentEvent);
+  const nonce = randomBytes(16).toString('hex');
   try {
-    await fetch(`http://127.0.0.1:${cfg.port}/event`, { method: 'POST', headers: { 'x-kayy-token': cfg.token }, body: JSON.stringify(body) });
+    await fetch(`http://127.0.0.1:${cfg.port}/event`, {
+      method: 'POST',
+      headers: { 'x-kayy-nonce': nonce, 'x-kayy-auth': requestAuth(cfg.token, nonce, '/event', body) },
+      body,
+    });
   } catch {
     console.error('App not reachable – is Kayy Office running?');
     process.exit(1);

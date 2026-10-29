@@ -29,7 +29,7 @@ export class EventLog {
     this.ingest(this.summary(date), e);
     if (this.dir) {
       const lines = this.buffer.get(date) ?? [];
-      lines.push(JSON.stringify(e));
+      lines.push(JSON.stringify({ ...e, message: undefined })); // message text may contain secrets: never persisted
       this.buffer.set(date, lines);
       this.timer ??= setTimeout(() => this.flush(), FLUSH_MS);
     }

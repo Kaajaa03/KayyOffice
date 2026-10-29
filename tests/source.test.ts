@@ -26,6 +26,12 @@ describe('SourceGate', () => {
     expect(g.acceptPermission({ sessionId: 'a', source: 'mod' })).toBe(true);
     expect(g.acceptPermission({ sessionId: 'z' })).toBe(true);
   });
+  it('a mod permission request also marks the session as mod-driven (events may be dropped)', () => {
+    const g = new SourceGate();
+    expect(g.acceptPermission({ sessionId: 'a', source: 'mod' })).toBe(true);
+    expect(g.acceptPermission({ sessionId: 'a' })).toBe(false);
+    expect(g.acceptEvent(ev('a'))).toBe(false);
+  });
   it('falls back to hooks when the mod has been silent for 5 minutes', () => {
     let now = 0;
     const g = new SourceGate(() => now);

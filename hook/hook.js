@@ -23,7 +23,7 @@ function toEvent(h) {
   let message = cut(h.message, 500);
   const resp = h.tool_response;
   if (h.hook_event_name === 'PostToolUse' && resp && (resp.is_error === true || resp.error)) {
-    message = 'ERROR: ' + (cut(typeof resp.error === 'string' ? resp.error : '', 400) || 'tool failed');
+    message = 'ERROR: ' + (cut(h.tool_name, 100) || 'tool') + ' failed'; // never the tool output: it may hold secrets
   }
   return {
     ts: Date.now(),
@@ -39,6 +39,25 @@ function toEvent(h) {
   };
 }
 
+// The token never goes over the wire (a process squatting on the port must not learn it):
+// requests are signed, see src/main/auth.ts for the exact scheme.
+function hmac(token, msg) {
+  return crypto.createHmac('sha256', token).update(msg).digest('hex');
+}
+
+function signed(cfg, route, body) {
+  const nonce = crypto.randomBytes(16).toString('hex');
+  return {
+    nonce,
+    headers: {
+      'x-kayy-nonce': nonce,
+      'x-kayy-auth': hmac(cfg.token, 'req|' + nonce + '|' + route + '|' + body),
+      'content-type': 'application/json',
+      'content-length': Buffer.byteLength(body),
+    },
+  };
+}
+
 function send(event, cfg) {
   const body = JSON.stringify(event);
   const req = http.request(
@@ -47,7 +66,7 @@ function send(event, cfg) {
       port: cfg.port,
       path: '/event',
       method: 'POST',
-      headers: { 'x-kayy-token': cfg.token, 'content-type': 'application/json', 'content-length': Buffer.byteLength(body) },
+      headers: signed(cfg, '/event', body).headers,
       timeout: TIMEOUT_MS,
     },
     (res) => { res.resume(); res.on('end', done); res.on('error', done); },
@@ -71,15 +90,15 @@ function summarize(input) {
 // Allow click on the overlay must never answer.
 const NEVER_ASK = new Set(['ExitPlanMode', 'AskUserQuestion']);
 
-function proofOk(header, nonce, token) {
-  const expected = crypto.createHmac('sha256', token).update(nonce).digest('hex');
-  const got = String(header || '');
-  return got.length === expected.length && crypto.timingSafeEqual(Buffer.from(got), Buffer.from(expected));
+// The proof binds nonce AND decision, so only a server that knows the token can produce it.
+function proofOk(header, nonce, token, decision) {
+  const expected = Buffer.from(hmac(token, 'res|' + nonce + '|' + decision), 'utf8');
+  const got = Buffer.from(String(header || ''), 'utf8');
+  return got.length === expected.length && crypto.timingSafeEqual(got, expected);
 }
 
 function askPermission(h, cfg) {
   if (NEVER_ASK.has(h.tool_name)) return done();
-  const nonce = crypto.randomBytes(16).toString('hex');
   const sub = typeof h.agent_id === 'string' && h.agent_id ? h.agent_id : null;
   const body = JSON.stringify({
     sessionId: cut(h.session_id, 200),
@@ -87,24 +106,24 @@ function askPermission(h, cfg) {
     tool: cut(h.tool_name, 100),
     summary: summarize(h.tool_input),
   });
+  const { nonce, headers } = signed(cfg, '/permission', body);
   const req = http.request(
     {
       host: '127.0.0.1', port: cfg.port, path: '/permission', method: 'POST',
-      headers: { 'x-kayy-token': cfg.token, 'x-kayy-nonce': nonce, 'content-type': 'application/json', 'content-length': Buffer.byteLength(body) },
+      headers,
       timeout: PERMISSION_WAIT_MS,
     },
     (res) => {
-      if (!proofOk(res.headers['x-kayy-proof'], nonce, cfg.token)) { res.resume(); return done(); }
       let data = '';
       res.setEncoding('utf8');
       res.on('data', (c) => { if (data.length < 4096) data += c; });
       res.on('end', () => {
         try {
           const { decision } = JSON.parse(data);
-          if (decision === 'allow' || decision === 'deny') {
+          if ((decision === 'allow' || decision === 'deny') && proofOk(res.headers['x-kayy-proof'], nonce, cfg.token, decision)) {
             process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PermissionRequest', decision: { behavior: decision } } }));
           }
-        } catch { /* no decision -> normal prompt */ }
+        } catch { /* no decision / bad proof -> normal prompt */ }
         done();
       });
       res.on('error', done);
