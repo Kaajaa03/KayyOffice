@@ -16,9 +16,11 @@
   "devDependencies": {
     "@types/node": "^26.6.6",
     "electron": "^45.1.0",
+    "electron-builder": "^26.18.0",
     "esbuild": "^0.28.2",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vitest": "^5.0.5"
-  }
+  },
+  "author": "Kaajaa03"
 }

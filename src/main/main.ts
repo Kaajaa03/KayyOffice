@@ -21,7 +21,8 @@ const STALE_MS = 15 * 60 * 1000;
 const PUBLISH_MIN_MS = 50;
 const HOTKEY = 'Control+Alt+O';
 
-const args = process.argv.slice(2);
+// packaged: argv = [exe, ...flags]; dev: [electron, appPath, ...flags] -> just take the flags
+const args = process.argv.filter((a) => a.startsWith('--'));
 const flag = (name: string) => args.find((a) => a === `--${name}` || a.startsWith(`--${name}=`));
 const flagValue = (name: string) => flag(name)?.split('=')[1];
 
