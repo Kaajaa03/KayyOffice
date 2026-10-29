@@ -1,0 +1,58 @@
+import { describe, it, expect } from 'vitest';
+import { initialState, reduce, tick, pruneStale, DONE_TO_IDLE_MS } from '../src/main/state';
+import type { AgentEvent, AppState } from '../src/shared/types';
+
+const ev = (o: Partial<AgentEvent>): AgentEvent => ({
+  ts: 1000, sessionId: 's1', agentId: 's1', event: 'PreToolUse', cwd: 'C:\\p\\proj', ...o,
+});
+
+function deepFreeze<T>(o: T): T {
+  Object.values(o as object).forEach((v) => typeof v === 'object' && v && deepFreeze(v));
+  return Object.freeze(o);
+}
+
+describe('reduce', () => {
+  it('PreToolUse Bash -> working/terminal', () => {
+    const s = reduce(initialState(), ev({ tool: 'Bash' }));
+    expect(s.agents.s1.status).toBe('working');
+    expect(s.agents.s1.category).toBe('terminal');
+  });
+  it('Notification -> waiting with message', () => {
+    const s = reduce(initialState(), ev({ event: 'Notification', message: 'needs permission' }));
+    expect(s.agents.s1.status).toBe('waiting');
+    expect(s.agents.s1.message).toBe('needs permission');
+  });
+  it('Stop -> done, tick after DONE_TO_IDLE_MS -> idle', () => {
+    let s = reduce(initialState(), ev({ event: 'Stop', ts: 1000 }));
+    expect(s.agents.s1.status).toBe('done');
+    expect(tick(s, 1000 + DONE_TO_IDLE_MS - 1).agents.s1.status).toBe('done');
+    s = tick(s, 1000 + DONE_TO_IDLE_MS);
+    expect(s.agents.s1.status).toBe('idle');
+  });
+  it('SubagentStart creates child; SessionEnd removes parent and children', () => {
+    let s = reduce(initialState(), ev({ event: 'SessionStart' }));
+    s = reduce(s, ev({ event: 'SubagentStart', agentId: 'a2', parentId: 's1' }));
+    expect(s.agents.a2.parentId).toBe('s1');
+    s = reduce(s, ev({ event: 'SessionEnd' }));
+    expect(Object.keys(s.agents)).toEqual([]);
+  });
+  it('late PostToolUse for unknown session creates exactly one agent; pruneStale removes it', () => {
+    const s = reduce(initialState(), ev({ event: 'PostToolUse', sessionId: 'x', agentId: 'x', ts: 1000 }));
+    expect(Object.keys(s.agents)).toEqual(['x']);
+    expect(Object.keys(pruneStale(s, 1000 + 60_000, 30_000).agents)).toEqual([]);
+  });
+  it('SubagentStop without start does not throw or change state', () => {
+    const s0 = initialState();
+    const s = reduce(s0, ev({ event: 'SubagentStop', agentId: 'nope', parentId: 's1' }));
+    expect(s).toEqual(s0);
+  });
+  it('two sessions in same cwd -> two agents', () => {
+    let s = reduce(initialState(), ev({ sessionId: 'a', agentId: 'a' }));
+    s = reduce(s, ev({ sessionId: 'b', agentId: 'b' }));
+    expect(Object.keys(s.agents).sort()).toEqual(['a', 'b']);
+  });
+  it('does not mutate input state', () => {
+    const s0: AppState = deepFreeze(reduce(initialState(), ev({})));
+    expect(() => reduce(s0, ev({ event: 'Stop' }))).not.toThrow();
+  });
+});
