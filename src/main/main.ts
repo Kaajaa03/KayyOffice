@@ -99,6 +99,13 @@ async function screenshotAndQuit(path: string): Promise<void> {
   app.quit();
 }
 
+// Measured (tools/perf-check.ts): software rendering + in-process GPU roughly halves RAM
+// (154 -> 84 MB idle) for this small 2D canvas. KAYY_GFX=hw opts back into the GPU process.
+if (process.env.KAYY_GFX !== 'hw') {
+  app.disableHardwareAcceleration();
+  app.commandLine.appendSwitch('in-process-gpu');
+}
+
 async function main(): Promise<void> {
   if (!app.requestSingleInstanceLock()) { app.quit(); return; }
   await app.whenReady();
