@@ -35,6 +35,26 @@ export function createOverlay(): BrowserWindow {
   return win;
 }
 
+export function createWelcome(): BrowserWindow {
+  const win = new BrowserWindow({
+    width: 560,
+    height: 640,
+    title: 'Kayy Office',
+    backgroundColor: '#0f1422',
+    autoHideMenuBar: true,
+    maximizable: false,
+    webPreferences: {
+      preload: join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  });
+  win.removeMenu();
+  win.loadFile(join(__dirname, 'welcome.html'));
+  return win;
+}
+
 export function toggleOverlay(win: BrowserWindow): void {
   if (win.isVisible()) {
     win.webContents.send('visibility', false);

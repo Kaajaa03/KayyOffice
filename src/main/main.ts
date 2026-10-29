@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { loadConfig, saveConfigPort } from './config';
+import { loadConfig, saveConfigPort, updateConfig } from './config';
 import { PermissionQueue } from './control';
 import { demoState } from './demo';
 import { EventLog, localDate, writeDevLog, writeWeekLog } from './log';
@@ -14,12 +14,15 @@ import { AwakeManager } from './power';
 import { applyRoles, ensureDefaultRoles, loadRoles } from './roles';
 import type { RoleDef } from './roles';
 import { startServer } from './server';
+import { SourceGate } from './source';
 import { initialState, pruneStale, reduce, tick } from './state';
-import { createOverlay, toggleOverlay } from './window';
+import { createOverlay, createWelcome, toggleOverlay } from './window';
 import type { AppState } from '../shared/types';
 
 const STALE_MS = 15 * 60 * 1000;
 const PUBLISH_MIN_MS = 50;
+const HINT_MS = 9000;
+const DEMO_MS = 15000;
 const HOTKEY = 'Control+Alt+O';
 
 // packaged: argv = [exe, ...flags]; dev: [electron, appPath, ...flags] -> just take the flags
@@ -28,11 +31,15 @@ const flag = (name: string) => args.find((a) => a === `--${name}` || a.startsWit
 const flagValue = (name: string) => flag(name)?.split('=')[1];
 
 let state: AppState = initialState();
+let demo: AppState | null = null; // temporary sample office (tray / welcome / --demo)
+let demoTimer: NodeJS.Timeout | null = null;
 let win: BrowserWindow;
+let welcomeWin: BrowserWindow | null = null;
 let tray: Tray;
 let publishTimer: NodeJS.Timeout | null = null;
 let publishDirty = false;
 let housekeeping: NodeJS.Timeout | null = null;
+const gate = new SourceGate();
 
 const awake = new AwakeManager({
   start: (type) => powerSaveBlocker.start(type),
@@ -61,14 +68,25 @@ async function openRecap(week: boolean): Promise<void> {
   await shell.openPath(file);
 }
 
+const view = (): AppState => demo ?? state;
+
 function publish(): void {
   awake.update(state);
   if (publishTimer) { publishDirty = true; return; }
-  if (!win.isDestroyed()) win.webContents.send('state', applyRoles(state, roles));
+  if (!win.isDestroyed()) win.webContents.send('state', applyRoles(view(), roles));
   publishTimer = setTimeout(() => {
     publishTimer = null;
     if (publishDirty) { publishDirty = false; publish(); }
   }, PUBLISH_MIN_MS);
+}
+
+function startDemo(ms: number | null): void {
+  demo = demoState();
+  if (demoTimer) clearTimeout(demoTimer);
+  demoTimer = null;
+  showOverlay();
+  publish();
+  if (ms) demoTimer = setTimeout(() => { demo = null; demoTimer = null; publish(); }, ms);
 }
 
 function syncHousekeeping(): void {
@@ -101,25 +119,41 @@ async function toast(message: string, type: 'info' | 'error' = 'info'): Promise<
   await dialog.showMessageBox({ type, title: 'Kayy Office', message });
 }
 
+/** Shared by tray and welcome window; returns a human-readable result (never throws). */
+function installHooksAction(): { ok: boolean; text: string } {
+  try {
+    const staged = stageHook(hookPath(), configDirPath);
+    const { backupPath } = installHooks(settingsPath(), staged);
+    const noNode = spawnSync('where', ['node'], { windowsHide: true }).status !== 0;
+    return {
+      ok: true,
+      text:
+        `Hooks installiert.${backupPath ? `\nBackup: ${backupPath}` : ''}\nNeue Claude-Code-Sessions nutzen sie automatisch.` +
+        (noNode ? '\n\nACHTUNG: "node" wurde nicht im PATH gefunden. Die Hooks brauchen Node.js, sonst melden sie Fehler.' : ''),
+    };
+  } catch (e) {
+    return { ok: false, text: (e as Error).message };
+  }
+}
+
+function openWelcome(): void {
+  if (welcomeWin && !welcomeWin.isDestroyed()) { welcomeWin.focus(); return; }
+  welcomeWin = createWelcome();
+  welcomeWin.on('closed', () => { welcomeWin = null; });
+}
+
 function buildTray(): void {
   tray = new Tray(trayIcon());
-  tray.setToolTip('Kayy Office');
+  tray.setToolTip('Kayy Office – Klick: ein/aus');
   tray.on('click', () => toggleOverlay(win));
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: `Anzeigen / Verstecken (${HOTKEY.replace('Control', 'Ctrl')})`, click: () => toggleOverlay(win) },
+    { label: 'Demo zeigen (15 s)', click: () => startDemo(DEMO_MS) },
+    { label: 'Willkommen / Hilfe', click: () => openWelcome() },
+    { type: 'separator' },
     {
       label: 'Hooks installieren',
-      click: async () => {
-        try {
-          const staged = stageHook(hookPath(), configDirPath);
-          const { backupPath } = installHooks(settingsPath(), staged);
-          const noNode = spawnSync('where', ['node'], { windowsHide: true }).status !== 0;
-          await toast(
-            `Hooks installiert (${staged}).${backupPath ? `\nBackup: ${backupPath}` : ''}\nNeue Claude-Code-Sessions nutzen sie automatisch.` +
-            (noNode ? '\n\nACHTUNG: "node" wurde nicht im PATH gefunden. Die Hooks brauchen Node.js, sonst melden sie Fehler.' : ''),
-          );
-        } catch (e) { await toast((e as Error).message, 'error'); }
-      },
+      click: async () => { const r = installHooksAction(); await toast(r.text, r.ok ? 'info' : 'error'); },
     },
     {
       label: 'Hooks entfernen',
@@ -128,10 +162,12 @@ function buildTray(): void {
         catch (e) { await toast((e as Error).message, 'error'); }
       },
     },
+    { type: 'separator' },
     { label: 'Dev-Log (heute) öffnen', click: () => void openRecap(false) },
     { label: 'Wochen-Recap öffnen', click: () => void openRecap(true) },
     { label: 'Rollen-Datei öffnen (roles.json)', click: () => void shell.openPath(rolesPath) },
     { label: 'Rollen neu laden', click: () => { roles = loadRoles(rolesPath); publish(); } },
+    { type: 'separator' },
     {
       label: 'Wach bleiben, solange Agents arbeiten',
       type: 'checkbox',
@@ -180,9 +216,13 @@ async function main(): Promise<void> {
   win = createOverlay();
   win.webContents.on('did-finish-load', () => {
     win.webContents.send('visibility', true);
-    win.webContents.send('state', applyRoles(state, roles));
+    win.webContents.send('state', applyRoles(view(), roles));
     win.webContents.send('permissions', queue.pending());
+    win.webContents.send('hint', 'Kayy Office läuft · wartet auf Agents · Strg+Alt+O');
+    setTimeout(() => { if (!win.isDestroyed()) win.webContents.send('hint', null); }, HINT_MS);
   });
+  // a second launch (double click) must not look like "nothing happened"
+  app.on('second-instance', () => { showOverlay(); openWelcome(); });
 
   ipcMain.on('interactive', (_e, v: unknown) => {
     if (typeof v === 'boolean') win.setIgnoreMouseEvents(!v, { forward: true });
@@ -194,17 +234,31 @@ async function main(): Promise<void> {
     const a = state.agents[info.agentId];
     if (a) { state = reduce(state, { ts: Date.now(), sessionId: a.sessionId, agentId: a.id, event: 'PreToolUse', tool: info.tool, cwd: a.cwd }); publish(); }
   });
+  ipcMain.handle('action', async (e, name: unknown) => {
+    if (!welcomeWin || e.sender !== welcomeWin.webContents) return '';
+    if (name === 'install-hooks') return installHooksAction().text;
+    if (name === 'demo') { startDemo(DEMO_MS); return 'Demo läuft 15 Sekunden – schau an den oberen Bildschirmrand.'; }
+    if (name === 'close') { welcomeWin.close(); return ''; }
+    return '';
+  });
   app.on('before-quit', () => queue.dispose());
 
   if (flag('demo')) {
-    state = demoState();
-    void queue.add({ id: 'demo', agentId: 'reviewer', tool: 'Bash', summary: 'npm run build && node dist/main.js' });
+    startDemo(null);
+    void queue.add({ id: 'demo', agentId: 'reviewer', tool: 'Bash', summary: 'git push --force origin main' });
   } else {
     const server = await startServer({
       token: config.token,
       port: config.port,
-      onEvent: (e) => { eventLog.append(e); state = reduce(state, e); syncHousekeeping(); publish(); },
+      onEvent: (e) => {
+        if (!gate.acceptEvent(e)) return;
+        eventLog.append(e);
+        state = reduce(state, e);
+        syncHousekeeping();
+        publish();
+      },
       onPermission: (p, signal) => {
+        if (!gate.acceptPermission(p)) return Promise.resolve('ask' as const);
         const known = state.agents[p.agentId];
         state = reduce(state, {
           ts: Date.now(), sessionId: p.sessionId, agentId: p.agentId, event: 'Notification',
@@ -230,6 +284,10 @@ async function main(): Promise<void> {
 
   const shot = flagValue('screenshot');
   if (shot) await screenshotAndQuit(shot);
+  else if (!perf && !flag('demo') && !config.welcomeShown) {
+    openWelcome();
+    updateConfig(configDir, { welcomeShown: true });
+  }
 }
 
 main().catch((e) => { console.error(e); app.quit(); });

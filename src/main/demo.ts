@@ -1,19 +1,20 @@
 import type { Agent, AppState } from '../shared/types';
 
-/** Fixed sample office for visual checks (`--demo`). */
+/** Fixed sample office for the tray demo and visual checks (`--demo`). */
 export function demoState(now = Date.now()): AppState {
-  const mk = (id: string, cwd: string, status: Agent['status'], category?: Agent['category'], parentId?: string): Agent => ({
-    id, sessionId: parentId ?? id, parentId, cwd, status, category, lastEventTs: now,
-  });
+  const mk = (
+    id: string, cwd: string, status: Agent['status'], category: Agent['category'] | undefined,
+    model: string, extra: Partial<Agent> = {},
+  ): Agent => ({ id, sessionId: extra.parentId ?? id, cwd, status, category, model, lastEventTs: now, ...extra });
   const list = [
-    mk('planner', 'C:\\ai\\Claude', 'working', 'other'),
-    mk('coder', 'C:\\dev\\KayyOffice', 'working', 'code'),
-    mk('tester', 'C:\\dev\\KayyOffice', 'working', 'terminal'),
-    mk('researcher', 'C:\\dev\\site', 'working', 'browser'),
-    mk('reviewer', 'C:\\dev\\KayyOffice', 'waiting'),
-    mk('deploy', 'C:\\dev\\infra', 'done'),
-    mk('sub1', 'C:\\dev\\KayyOffice', 'error', 'terminal', 'coder'),
-    mk('idle1', 'C:\\dev\\old', 'idle'),
+    mk('planner', 'C:\\ai\\Claude', 'working', 'other', 'claude-opus-5-5', { costUsd: 0.84 }),
+    mk('coder', 'C:\\dev\\KayyOffice', 'working', 'code', 'claude-sonnet-5-5', { file: 'C:\\dev\\KayyOffice\\src\\main\\state.ts', costUsd: 1.32 }),
+    mk('tester', 'C:\\dev\\KayyOffice', 'working', 'terminal', 'claude-haiku-5-5', { costUsd: 0.07 }),
+    mk('researcher', 'C:\\dev\\site', 'working', 'browser', 'claude-haiku-5-5', { costUsd: 0.12 }),
+    mk('reviewer', 'C:\\dev\\KayyOffice', 'waiting', undefined, 'claude-opus-5-5', { costUsd: 0.51 }),
+    mk('deploy', 'C:\\dev\\infra', 'done', undefined, 'claude-sonnet-5-5', { costUsd: 0.2 }),
+    mk('sub1', 'C:\\dev\\KayyOffice', 'error', 'terminal', 'claude-haiku-5-5', { parentId: 'coder' }),
+    mk('idle1', 'C:\\dev\\old', 'idle', undefined, 'claude-sonnet-5-5'),
   ];
   return { agents: Object.fromEntries(list.map((a) => [a.id, a])) };
 }

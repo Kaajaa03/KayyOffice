@@ -1,3 +1,4 @@
+import { modelChip } from '../shared/model';
 import type { Agent } from '../shared/types';
 import { CELL_H, CELL_W } from './scene';
 import type { Desk } from './scene';
@@ -18,8 +19,8 @@ const r = (c: Ctx, x: number, y: number, w: number, h: number, color: string) =>
   c.fillRect(Math.round(x * U), Math.round(y * U), w * U, h * U);
 };
 
-export function drawBackground(c: Ctx, w: number, rows: number, hour: number): void {
-  const h = rows * CELL_H;
+export function drawBackground(c: Ctx, w: number, rows: number, hour: number, footerH = 0): void {
+  const h = rows * CELL_H + footerH;
   const night = hour < 5 || hour >= 21;
   const dusk = (hour >= 5 && hour < 7) || (hour >= 18 && hour < 21);
   const [top, bottom] = night ? ['#0f1422', '#161d30'] : dusk ? ['#34294f', '#241e3b'] : ['#2c3d5c', '#202c45'];
@@ -162,5 +163,50 @@ function drawDeskBody(c: Ctx, agent: Agent, desk: Desk, t: number, colorOverride
   c.fillText(labelFor(agent).slice(0, 14), CELL_W / 2, 41 * U + 4);
   c.fillStyle = color;
   c.font = '10px ui-monospace, Consolas, monospace';
-  c.fillText(STATUS_TEXT[agent.status], CELL_W / 2, 41 * U + 17);
+  const fileName = agent.status === 'working' && agent.file ? agent.file.split(/[\\/]/).filter(Boolean).pop() : undefined;
+  c.fillText(fileName ? fileName.slice(-16) : STATUS_TEXT[agent.status], CELL_W / 2, 41 * U + 17);
+
+  const chip = modelChip(agent.model);
+  if (chip) {
+    c.fillStyle = chip.color;
+    c.beginPath();
+    c.roundRect(10, 38, 16, 16, 4);
+    c.fill();
+    c.fillStyle = '#0b1020';
+    c.font = '800 11px ui-monospace, Consolas, monospace';
+    c.textAlign = 'center';
+    c.fillText(chip.letter, 18, 50);
+  }
+}
+
+export function drawFooter(c: Ctx, w: number, y: number, text: string): void {
+  c.save();
+  c.fillStyle = 'rgba(255,255,255,0.06)';
+  c.fillRect(10, y, w - 20, 1);
+  c.font = '600 10px ui-monospace, Consolas, monospace';
+  c.textAlign = 'center';
+  c.fillStyle = 'rgba(229,231,235,0.7)';
+  c.fillText(text, w / 2, y + 15);
+  c.restore();
+}
+
+/** Small pill shown briefly after start so an empty overlay does not look dead. */
+export function drawHint(c: Ctx, w: number, text: string): void {
+  c.save();
+  c.font = '600 12px ui-monospace, Consolas, monospace';
+  const tw = c.measureText(text).width + 36;
+  const x = Math.round((w - tw) / 2);
+  c.fillStyle = 'rgba(24,32,46,0.94)';
+  c.strokeStyle = 'rgba(255,212,59,0.7)';
+  c.lineWidth = 1.2;
+  c.beginPath();
+  c.roundRect(x, 0, tw, 34, [0, 0, 14, 14]);
+  c.fill();
+  c.stroke();
+  c.fillStyle = '#ffd43b';
+  c.fillRect(x + 14, 14, 6, 6);
+  c.fillStyle = '#e5e7eb';
+  c.textAlign = 'left';
+  c.fillText(text, x + 28, 21);
+  c.restore();
 }

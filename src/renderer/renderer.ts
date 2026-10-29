@@ -1,14 +1,18 @@
-import type { AppState, PermissionRequestInfo } from '../shared/types';
-import { CARD_H, CARD_W, drawPermissionCard } from './card';
+import type { Agent, AppState, PermissionRequestInfo } from '../shared/types';
+import { CARD_H, CARD_W, armDelay, drawPermissionCard } from './card';
 import type { Hit } from './card';
-import { CELL_H, CELL_W, DeskLayout, rowCount } from './scene';
+import { CELL_H, CELL_W, DeskLayout, officeStats, rowCount } from './scene';
 import type { Desk } from './scene';
 import { ClickGuard } from './clickguard';
 import { FrameGate, animationMode } from './loop';
+import { formatCost } from '../shared/model';
 import { projectOf } from '../shared/project';
-import { drawBackground, drawDesk, drawPlate } from './sprites';
+import { drawBackground, drawDesk, drawFooter, drawHint, drawPlate } from './sprites';
+
+const FOOTER_H = 22;
 
 interface KayyApi {
+  onHint(cb: (text: string | null) => void): void;
   onState(cb: (s: AppState) => void): void;
   onVisibility(cb: (v: boolean) => void): void;
   onPermissions(cb: (p: PermissionRequestInfo[]) => void): void;
@@ -24,6 +28,7 @@ const gate = new FrameGate({ activeFps: 60, idleFps: 10 });
 const guard = new ClickGuard();
 
 let state: AppState = { agents: {} };
+let hint: string | null = null;
 let permissions: PermissionRequestInfo[] = [];
 let hits: Hit[] = [];
 let hover: Hit | null = null;
@@ -35,6 +40,15 @@ function resize(): void {
   const dpr = window.devicePixelRatio || 1;
   canvas.width = Math.round(window.innerWidth * dpr);
   canvas.height = Math.round(window.innerHeight * dpr);
+}
+
+function footerText(agents: Agent[]): string {
+  const s = officeStats(agents);
+  const parts = [`${s.total} Agent${s.total === 1 ? '' : 's'}`];
+  if (s.working) parts.push(`${s.working} aktiv`);
+  if (s.waiting) parts.push(`${s.waiting} wartet auf dich`);
+  if (s.costUsd !== null) parts.push(formatCost(s.costUsd));
+  return parts.join('  ·  ');
 }
 
 /** Consecutive desks of one project on one row form a "room". */
@@ -60,16 +74,19 @@ function draw(now: number): void {
   let panelH = 0;
   if (agents.length) {
     const desks = layout.layout(agents, w);
-    const rows = Math.max(1, Math.min(rowCount(desks), Math.floor((window.innerHeight - cardRoom) / CELL_H)));
+    const rows = Math.max(1, Math.min(rowCount(desks), Math.floor((window.innerHeight - cardRoom - FOOTER_H) / CELL_H)));
     const used = Math.min(w, Math.max(...desks.map((d) => d.x)) + CELL_W);
     ctx.save();
     ctx.translate(Math.round((w - used) / 2), 0);
-    drawBackground(ctx, used, rows, new Date().getHours());
+    drawBackground(ctx, used, rows, new Date().getHours(), FOOTER_H);
     const visibleDesks = desks.filter((d) => d.row < rows).sort((a, b) => a.slot - b.slot);
     for (const run of projectRuns(visibleDesks)) drawPlate(ctx, run.x, run.y, run.w, run.name);
     for (const d of visibleDesks) { const a = state.agents[d.agentId]; drawDesk(ctx, a, d, now, a.color); }
+    drawFooter(ctx, used, rows * CELL_H, footerText(agents));
     ctx.restore();
-    panelH = rows * CELL_H;
+    panelH = rows * CELL_H + FOOTER_H;
+  } else if (hint) {
+    drawHint(ctx, w, hint);
   }
   if (permissions.length) {
     const req = permissions[0];
@@ -114,10 +131,11 @@ window.addEventListener('mouseup', (e) => {
 kayy.onState((s) => { state = s; wake(); safeDraw(performance.now()); });
 kayy.onPermissions((p) => {
   permissions = p;
-  guard.show(p[0]?.id ?? null, performance.now());
+  guard.show(p[0]?.id ?? null, performance.now(), p[0] ? armDelay(p[0]) : undefined);
   if (!p.length && interactive) { interactive = false; hover = null; kayy.setInteractive(false); }
   safeDraw(performance.now());
 });
+kayy.onHint((t) => { hint = t; safeDraw(performance.now()); });
 kayy.onVisibility((v) => { visible = v; if (v) wake(); });
 window.addEventListener('resize', () => { resize(); draw(performance.now()); });
 resize();
