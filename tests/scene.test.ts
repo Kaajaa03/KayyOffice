@@ -1,0 +1,37 @@
+import { describe, it, expect } from 'vitest';
+import { DeskLayout, CELL_W } from '../src/renderer/scene';
+import type { Agent } from '../src/shared/types';
+
+const ag = (id: string, o: Partial<Agent> = {}): Agent => ({
+  id, sessionId: id, cwd: 'C:\\p', status: 'idle', lastEventTs: 1, ...o,
+});
+
+describe('DeskLayout', () => {
+  it('gives 3 agents 3 distinct positions inside the width', () => {
+    const d = new DeskLayout().layout([ag('a'), ag('b'), ag('c')], 900);
+    expect(new Set(d.map((x) => `${x.x},${x.y}`)).size).toBe(3);
+    d.forEach((x) => expect(x.x + CELL_W).toBeLessThanOrEqual(900));
+  });
+  it('keeps an agent in place when another one leaves', () => {
+    const l = new DeskLayout();
+    l.layout([ag('a'), ag('b'), ag('c')], 900);
+    const before = l.layout([ag('a'), ag('c')], 900).find((x) => x.agentId === 'c')!;
+    const first = new DeskLayout();
+    const all = first.layout([ag('a'), ag('b'), ag('c')], 900).find((x) => x.agentId === 'c')!;
+    expect(before.x).toBe(all.x);
+    expect(before.y).toBe(all.y);
+  });
+  it('places a subagent right next to its parent', () => {
+    const l = new DeskLayout();
+    l.layout([ag('p')], 900);
+    const d = l.layout([ag('p'), ag('s', { parentId: 'p' })], 900);
+    const p = d.find((x) => x.agentId === 'p')!;
+    const s = d.find((x) => x.agentId === 's')!;
+    expect(s.slot).toBe(p.slot + 1);
+  });
+  it('wraps to a new row when the width is exceeded', () => {
+    const agents = Array.from({ length: 5 }, (_, i) => ag('a' + i));
+    const d = new DeskLayout().layout(agents, CELL_W * 2);
+    expect(Math.max(...d.map((x) => x.row))).toBe(2);
+  });
+});

@@ -1,0 +1,138 @@
+import { app, BrowserWindow, dialog, globalShortcut, Menu, nativeImage, Tray } from 'electron';
+import { writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+import { loadConfig, saveConfigPort } from './config';
+import { demoState } from './demo';
+import { installHooks, uninstallHooks } from './installer';
+import { runPerf } from './perf';
+import { startServer } from './server';
+import { initialState, pruneStale, reduce, tick } from './state';
+import { createOverlay, toggleOverlay } from './window';
+import type { AppState } from '../shared/types';
+
+const STALE_MS = 15 * 60 * 1000;
+const PUBLISH_MIN_MS = 50;
+const HOTKEY = 'Control+Alt+O';
+
+const args = process.argv.slice(2);
+const flag = (name: string) => args.find((a) => a === `--${name}` || a.startsWith(`--${name}=`));
+const flagValue = (name: string) => flag(name)?.split('=')[1];
+
+let state: AppState = initialState();
+let win: BrowserWindow;
+let tray: Tray;
+let publishTimer: NodeJS.Timeout | null = null;
+let publishDirty = false;
+let housekeeping: NodeJS.Timeout | null = null;
+
+function publish(): void {
+  if (publishTimer) { publishDirty = true; return; }
+  if (!win.isDestroyed()) win.webContents.send('state', state);
+  publishTimer = setTimeout(() => {
+    publishTimer = null;
+    if (publishDirty) { publishDirty = false; publish(); }
+  }, PUBLISH_MIN_MS);
+}
+
+function syncHousekeeping(): void {
+  const hasAgents = Object.keys(state.agents).length > 0;
+  if (hasAgents && !housekeeping) {
+    housekeeping = setInterval(() => {
+      const next = pruneStale(tick(state, Date.now()), Date.now(), STALE_MS);
+      if (next !== state) { state = next; publish(); }
+      if (!Object.keys(state.agents).length && housekeeping) { clearInterval(housekeeping); housekeeping = null; }
+    }, 5000);
+  }
+}
+
+function trayIcon() {
+  const size = 16;
+  const buf = Buffer.alloc(size * size * 4);
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+    const i = (y * size + x) * 4;
+    const border = x < 2 || y < 2 || x >= size - 2 || y >= size - 2;
+    const [b, g, r] = border ? [0xfa, 0x97, 0x77] : y < 8 ? [0x5c, 0x3d, 0x2c] : [0xff, 0xd4, 0x3b];
+    buf[i] = b; buf[i + 1] = g; buf[i + 2] = r; buf[i + 3] = 255;
+  }
+  return nativeImage.createFromBitmap(buf, { width: size, height: size });
+}
+
+const settingsPath = () => join(homedir(), '.claude', 'settings.json');
+const hookPath = () => (app.isPackaged ? join(process.resourcesPath, 'hook', 'hook.js') : join(app.getAppPath(), 'hook', 'hook.js'));
+
+async function toast(message: string, type: 'info' | 'error' = 'info'): Promise<void> {
+  await dialog.showMessageBox({ type, title: 'Kayy Office', message });
+}
+
+function buildTray(): void {
+  tray = new Tray(trayIcon());
+  tray.setToolTip('Kayy Office');
+  tray.on('click', () => toggleOverlay(win));
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: `Anzeigen / Verstecken (${HOTKEY.replace('Control', 'Ctrl')})`, click: () => toggleOverlay(win) },
+    {
+      label: 'Hooks installieren',
+      click: async () => {
+        try {
+          const { backupPath } = installHooks(settingsPath(), hookPath());
+          await toast(`Hooks installiert.${backupPath ? `\nBackup: ${backupPath}` : ''}\nNeue Claude-Code-Sessions nutzen sie automatisch.`);
+        } catch (e) { await toast((e as Error).message, 'error'); }
+      },
+    },
+    {
+      label: 'Hooks entfernen',
+      click: async () => {
+        try { uninstallHooks(settingsPath()); await toast('Hooks entfernt.'); }
+        catch (e) { await toast((e as Error).message, 'error'); }
+      },
+    },
+    { type: 'separator' },
+    { label: 'Beenden', click: () => app.quit() },
+  ]));
+}
+
+async function screenshotAndQuit(path: string): Promise<void> {
+  await new Promise((r) => setTimeout(r, 1500));
+  const img = await win.webContents.capturePage();
+  writeFileSync(path, img.toPNG());
+  app.quit();
+}
+
+async function main(): Promise<void> {
+  if (!app.requestSingleInstanceLock()) { app.quit(); return; }
+  await app.whenReady();
+
+  const configDir = join(app.getPath('appData'), 'KayyOffice');
+  const config = loadConfig(configDir);
+  win = createOverlay();
+  win.webContents.on('did-finish-load', () => {
+    win.webContents.send('visibility', true);
+    win.webContents.send('state', state);
+  });
+
+  if (flag('demo')) {
+    state = demoState();
+  } else {
+    const server = await startServer({
+      token: config.token,
+      port: config.port,
+      onEvent: (e) => { state = reduce(state, e); syncHousekeeping(); publish(); },
+    });
+    if (server.port !== config.port) saveConfigPort(configDir, server.port);
+    app.on('before-quit', () => { void server.close(); });
+  }
+
+  buildTray();
+  globalShortcut.register(HOTKEY, () => toggleOverlay(win));
+  app.on('will-quit', () => globalShortcut.unregisterAll());
+  app.on('window-all-closed', () => { /* tray app: keep running */ });
+
+  const perf = flagValue('perf');
+  if (perf) runPerf(Number(flagValue('perf-seconds') ?? 20), perf);
+
+  const shot = flagValue('screenshot');
+  if (shot) await screenshotAndQuit(shot);
+}
+
+main().catch((e) => { console.error(e); app.quit(); });
