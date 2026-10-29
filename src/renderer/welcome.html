@@ -18,7 +18,10 @@
     button { font:600 13px "Segoe UI", sans-serif; border:0; border-radius:8px; padding:8px 14px; cursor:pointer; background:var(--gold); color:#0b1020; }
     button.ghost { background:transparent; color:var(--text); border:1px solid var(--line); }
     button:hover { filter:brightness(1.1); }
-    .msg { margin-top:8px; min-height:18px; color:var(--green); font-size:13px; white-space:pre-wrap; }
+    .msg { margin-top:8px; color:var(--green); font-size:13px; white-space:pre-wrap; }
+    .msg:empty { display:none; }
+    .step > div:last-child { flex:1; }
+    body { overflow-y:auto; }
     kbd { background:#0b1020; border:1px solid var(--line); border-bottom-width:2px; border-radius:5px; padding:1px 6px; font:12px Consolas, monospace; }
     .foot { display:flex; justify-content:flex-end; margin-top:16px; }
   </style>

@@ -188,7 +188,8 @@ function buildTray(): void {
 
 async function screenshotAndQuit(path: string): Promise<void> {
   await new Promise((r) => setTimeout(r, 1500));
-  const img = await win.webContents.capturePage();
+  const target = flag('welcome') && welcomeWin && !welcomeWin.isDestroyed() ? welcomeWin : win;
+  const img = await target.webContents.capturePage();
   writeFileSync(path, img.toPNG());
   app.quit();
 }
@@ -283,6 +284,7 @@ async function main(): Promise<void> {
   if (perf) runPerf(Number(flagValue('perf-seconds') ?? 20), perf);
 
   const shot = flagValue('screenshot');
+  if (flag('welcome')) openWelcome();
   if (shot) await screenshotAndQuit(shot);
   else if (!perf && !flag('demo') && !config.welcomeShown) {
     openWelcome();

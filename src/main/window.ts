@@ -37,8 +37,8 @@ export function createOverlay(): BrowserWindow {
 
 export function createWelcome(): BrowserWindow {
   const win = new BrowserWindow({
-    width: 560,
-    height: 640,
+    width: 580,
+    height: 700,
     title: 'Kayy Office',
     backgroundColor: '#0f1422',
     autoHideMenuBar: true,
