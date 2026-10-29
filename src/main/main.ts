@@ -1,11 +1,12 @@
 import { app, BrowserWindow, dialog, globalShortcut, ipcMain, Menu, nativeImage, powerSaveBlocker, shell, Tray } from 'electron';
 import { randomUUID } from 'node:crypto';
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { loadConfig, saveConfigPort } from './config';
 import { PermissionQueue } from './control';
 import { demoState } from './demo';
+import { EventLog, localDate, renderDevLog, weekSummary } from './log';
 import { installHooks, uninstallHooks } from './installer';
 import { runPerf } from './perf';
 import { AwakeManager } from './power';
@@ -48,6 +49,19 @@ function showOverlay(): void {
 
 let roles: RoleDef[] = [];
 let rolesPath = '';
+let eventLog = new EventLog(null);
+let devLogDir = '';
+
+async function openRecap(week: boolean): Promise<void> {
+  const today = localDate(Date.now());
+  const md = week
+    ? weekSummary(today, eventLog).map(renderDevLog).join('\n---\n\n')
+    : renderDevLog(eventLog.day(today));
+  mkdirSync(devLogDir, { recursive: true });
+  const file = join(devLogDir, week ? `week-${today}.md` : `${today}.md`);
+  writeFileSync(file, md);
+  await shell.openPath(file);
+}
 
 function publish(): void {
   awake.update(state);
@@ -111,6 +125,8 @@ function buildTray(): void {
         catch (e) { await toast((e as Error).message, 'error'); }
       },
     },
+    { label: 'Dev-Log (heute) öffnen', click: () => void openRecap(false) },
+    { label: 'Wochen-Recap öffnen', click: () => void openRecap(true) },
     { label: 'Rollen-Datei öffnen (roles.json)', click: () => void shell.openPath(rolesPath) },
     { label: 'Rollen neu laden', click: () => { roles = loadRoles(rolesPath); publish(); } },
     {
@@ -118,6 +134,13 @@ function buildTray(): void {
       type: 'checkbox',
       checked: true,
       click: (item) => awake.setEnabled(item.checked),
+    },
+    {
+      label: 'Mit Windows starten',
+      type: 'checkbox',
+      checked: app.getLoginItemSettings().openAtLogin,
+      enabled: app.isPackaged,
+      click: (item) => app.setLoginItemSettings({ openAtLogin: item.checked }),
     },
     { type: 'separator' },
     { label: 'Beenden', click: () => app.quit() },
@@ -144,6 +167,9 @@ async function main(): Promise<void> {
 
   const configDir = join(app.getPath('appData'), 'KayyOffice');
   const config = loadConfig(configDir);
+  eventLog = new EventLog(join(configDir, 'logs'));
+  devLogDir = config.devLogDir || join(configDir, 'devlog');
+  app.on('before-quit', () => eventLog.flush());
   rolesPath = join(configDir, 'roles.json');
   ensureDefaultRoles(rolesPath);
   roles = loadRoles(rolesPath);
@@ -173,7 +199,7 @@ async function main(): Promise<void> {
     const server = await startServer({
       token: config.token,
       port: config.port,
-      onEvent: (e) => { state = reduce(state, e); syncHousekeeping(); publish(); },
+      onEvent: (e) => { eventLog.append(e); state = reduce(state, e); syncHousekeeping(); publish(); },
       onPermission: (p, signal) => {
         const known = state.agents[p.agentId];
         state = reduce(state, {

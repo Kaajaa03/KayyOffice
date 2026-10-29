@@ -1,0 +1,19 @@
+appId: dev.kayy.office
+productName: Kayy Office
+directories:
+  output: release
+files:
+  - dist/**
+  - package.json
+extraResources:
+  - from: hook
+    to: hook
+win:
+  target:
+    - nsis
+    - portable
+  signAndEditExecutable: false
+nsis:
+  oneClick: true
+  perMachine: false
+  deleteAppDataOnUninstall: false
