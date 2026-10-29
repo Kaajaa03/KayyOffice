@@ -1,3 +1,15 @@
+import type { Agent } from '../shared/types';
+
+/** fast = an agent is working (60 fps); slow = only waiting/error/done (10 fps timer); none = static. */
+export function animationMode(agents: Agent[]): 'fast' | 'slow' | 'none' {
+  let slow = false;
+  for (const a of agents) {
+    if (a.status === 'working') return 'fast';
+    if (a.status !== 'idle') slow = true;
+  }
+  return slow ? 'slow' : 'none';
+}
+
 export interface FrameGateOptions {
   activeFps: number;
   idleFps: number;

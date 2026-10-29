@@ -99,9 +99,14 @@ const STATUS_TEXT: Record<string, string> = {
   working: 'working', waiting: 'needs you', done: 'done', error: 'error', idle: 'idle',
 };
 
+/** Canvas state is always restored, even if a draw call throws. */
 export function drawDesk(c: Ctx, agent: Agent, desk: Desk, t: number, colorOverride?: string): void {
-  const color = agentColor(agent.id, colorOverride);
   c.save();
+  try { drawDeskBody(c, agent, desk, t, colorOverride); } finally { c.restore(); }
+}
+
+function drawDeskBody(c: Ctx, agent: Agent, desk: Desk, t: number, colorOverride?: string): void {
+  const color = agentColor(agent.id, colorOverride);
   c.translate(desk.x, desk.y);
   const standing = agent.status === 'waiting';
 
@@ -158,5 +163,4 @@ export function drawDesk(c: Ctx, agent: Agent, desk: Desk, t: number, colorOverr
   c.fillStyle = color;
   c.font = '10px ui-monospace, Consolas, monospace';
   c.fillText(STATUS_TEXT[agent.status], CELL_W / 2, 41 * U + 17);
-  c.restore();
 }

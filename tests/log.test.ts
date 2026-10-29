@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { mkdtempSync, readFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { EventLog, renderDevLog, weekSummary, writeDevLog, localDate } from '../src/main/log';
+import { EventLog, renderDevLog, weekSummary, writeDevLog, writeWeekLog, localDate } from '../src/main/log';
 import type { AgentEvent } from '../src/shared/types';
 
 const T0 = new Date(2026, 9, 29, 10, 0, 0).getTime(); // local 2026-10-29 10:00
@@ -68,11 +68,17 @@ describe('renderDevLog / weekSummary / writeDevLog', () => {
     expect(w[0].date).toBe('2026-10-23');
     expect(w[0].perAgent).toEqual({});
   });
-  it('writeDevLog writes <date>.md into the target dir', () => {
+  it('writeDevLog uses a prefixed name so it cannot overwrite a user note like <date>.md', () => {
     const dir = join(mkdtempSync(join(tmpdir(), 'kayy-dev-')), 'nested');
     const file = writeDevLog(dir, log.day(DATE));
     expect(readFileSync(file, 'utf8')).toContain('Dev-Log');
-    expect(file.endsWith(`${DATE}.md`)).toBe(true);
+    expect(file.endsWith(`kayy-devlog-${DATE}.md`)).toBe(true);
+  });
+  it('writeWeekLog writes kayy-week-<date>.md with 7 day sections', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'kayy-week-'));
+    const file = writeWeekLog(dir, DATE, log);
+    expect(file.endsWith(`kayy-week-${DATE}.md`)).toBe(true);
+    expect(readFileSync(file, 'utf8').match(/^# Dev-Log /gm)).toHaveLength(7);
   });
   it('localDate formats local dates as YYYY-MM-DD', () => expect(localDate(T0)).toBe(DATE));
 });

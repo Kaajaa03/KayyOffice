@@ -66,6 +66,7 @@ export function tick(state: AppState, now: number): AppState {
 
 export function pruneStale(state: AppState, now: number, maxAgeMs: number): AppState {
   const entries = Object.entries(state.agents);
-  const kept = entries.filter(([, a]) => now - a.lastEventTs < maxAgeMs);
+  // an agent that "needs you" stays visible 8x longer (e.g. 2 h) than other quiet agents
+  const kept = entries.filter(([, a]) => now - a.lastEventTs < (a.status === 'waiting' ? maxAgeMs * 8 : maxAgeMs));
   return kept.length === entries.length ? state : { agents: Object.fromEntries(kept) };
 }

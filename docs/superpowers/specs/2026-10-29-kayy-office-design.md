@@ -46,7 +46,7 @@ Zustände je Agent: `idle` → `working(tool-kategorie: code|terminal|browser|ot
 
 ## Stufen
 - **A – Status (MVP):** Datenfluss, Overlay, Schreibtische, Zustände, Tray, Hotkey, Mock-Generator, Hook-Installer (ergänzt `settings.json` nicht-destruktiv, mit Backup).
-- **B – Steuerung:** Permission im Overlay freigeben/ablehnen via blockierendem PreToolUse-Hook (nur wenn App läuft; sonst normaler Prompt), Wachbleiben solange Agents laufen (`powerSaveBlocker`), Toasts/Glow in Agentenfarbe.
+- **B – Steuerung:** Permission im Overlay freigeben/ablehnen via blockierendem **PermissionRequest**-Hook (nur wenn App läuft; sonst normaler Prompt; Antwort wird per HMAC-Beweis des Tokens authentifiziert; ExitPlanMode/AskUserQuestion werden nie über das Overlay beantwortet). Abweichung von der ersten Fassung (PreToolUse): PermissionRequest feuert genau dann, wenn der Dialog erscheint, und ist laut aktueller Claude-Code-Doku das passende Event., Wachbleiben solange Agents laufen (`powerSaveBlocker`), Toasts/Glow in Agentenfarbe.
 - **C – Rollen & Log:** `roles.json`, Projektgruppen im Büro, Tages-/Wochen-Recap, Dev-Log in Markdown (Zielordner konfigurierbar, z. B. Vault).
 
 ## Effizienz-Maßnahmen

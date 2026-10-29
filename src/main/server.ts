@@ -1,3 +1,4 @@
+import { createHmac } from 'node:crypto';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { MAX_BODY_BYTES, parseEvent } from './validate';
@@ -74,8 +75,15 @@ export function startServer(opts: ServerOptions): Promise<RunningServer> {
 
       const payload = parsePermission(parsed);
       if (!payload) return void res.writeHead(400).end();
+      // The hook trusts a decision only if the server proves it knows the token (HMAC of the hook's
+      // nonce), so another local process squatting on the port cannot auto-approve tool calls.
+      const nonce = req.headers['x-kayy-nonce'];
+      const headers: Record<string, string> = { 'content-type': 'application/json' };
+      if (typeof nonce === 'string' && nonce.length <= 128) {
+        headers['x-kayy-proof'] = createHmac('sha256', opts.token).update(nonce).digest('hex');
+      }
       const reply = (decision: PermissionDecision) => {
-        if (!res.writableEnded) res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ decision }));
+        if (!res.writableEnded) res.writeHead(200, headers).end(JSON.stringify({ decision }));
       };
       if (!opts.onPermission) return reply('ask');
       const ac = new AbortController();

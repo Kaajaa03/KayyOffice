@@ -34,6 +34,12 @@ describe('loadRoles', () => {
   };
   it('returns [] for a missing file', () => expect(loadRoles(join(tmpdir(), 'nope-roles.json'))).toEqual([]));
   it('returns [] for a broken file without throwing', () => expect(loadRoles(file('{oops'))).toEqual([]));
+  it('rejects colors that are not #rrggbb (they would break canvas gradients)', () => {
+    const bad = ['red', '#f00', '#12345g', 'rgb(1,2,3)', ''].map((color) => ({ match: { namePattern: 'x' }, role: 'R', color }));
+    expect(loadRoles(file(JSON.stringify(bad)))).toEqual([]);
+    const ok = { match: { namePattern: 'x' }, role: 'R', color: '#FFA94D' };
+    expect(loadRoles(file(JSON.stringify([ok])))).toEqual([ok]);
+  });
   it('skips invalid entries and invalid regexes, keeps valid ones', () => {
     const p = file(JSON.stringify([{ role: 'no-match' }, { match: { namePattern: '(' }, role: 'Bad', color: '#fff' }, roles[0]]));
     expect(loadRoles(p)).toEqual([roles[0]]);

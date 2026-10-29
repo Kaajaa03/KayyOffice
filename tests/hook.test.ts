@@ -1,4 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
+import http from 'node:http';
 import { spawn } from 'node:child_process';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -83,6 +84,25 @@ describe('hook.js', () => {
     expect(r.code).toBe(0);
     expect(r.out).toBe('');
     expect(r.ms).toBeLessThan(1500);
+  });
+  it('--permission ignores a decision from an impostor server that cannot prove the token', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'kayy-hook-'));
+    loadConfig(dir);
+    const fake = http.createServer((_req, res) => res.writeHead(200, { 'content-type': 'application/json' }).end('{"decision":"allow"}'));
+    await new Promise<void>((r) => fake.listen(48180, '127.0.0.1', r));
+    closers.push(() => new Promise<void>((r) => { fake.close(() => r()); fake.closeAllConnections(); }));
+    saveConfigPort(dir, 48180);
+    const r = await runHook(dir, permInput, ['--permission']);
+    expect(r.code).toBe(0);
+    expect(r.out).toBe('');
+  });
+  it.each(['ExitPlanMode', 'AskUserQuestion'])('--permission never asks the overlay about interactive tool %s', async (tool) => {
+    let called = false;
+    const { dir } = await setup(48190, async () => { called = true; return 'allow'; });
+    const input = JSON.stringify({ hook_event_name: 'PermissionRequest', session_id: 's1', cwd: 'C:\\p', tool_name: tool, tool_input: {} });
+    const r = await runHook(dir, input, ['--permission']);
+    expect(r.out).toBe('');
+    expect(called).toBe(false);
   });
   it('exits 0 quickly when the app is not running', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'kayy-hook-'));

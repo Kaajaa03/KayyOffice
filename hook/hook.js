@@ -2,6 +2,7 @@
 // Kayy Office hook: forwards a Claude Code hook event to the local app.
 // Dependency-free, always exits 0, silent on stdout (so it never affects Claude Code).
 'use strict';
+const crypto = require('node:crypto');
 const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -65,7 +66,19 @@ function summarize(input) {
   try { return JSON.stringify(input).slice(0, 300); } catch { return ''; }
 }
 
+// Interactive tools: their "permission" is a real user dialog (plan approval, a question) that an
+// Allow click on the overlay must never answer.
+const NEVER_ASK = new Set(['ExitPlanMode', 'AskUserQuestion']);
+
+function proofOk(header, nonce, token) {
+  const expected = crypto.createHmac('sha256', token).update(nonce).digest('hex');
+  const got = String(header || '');
+  return got.length === expected.length && crypto.timingSafeEqual(Buffer.from(got), Buffer.from(expected));
+}
+
 function askPermission(h, cfg) {
+  if (NEVER_ASK.has(h.tool_name)) return done();
+  const nonce = crypto.randomBytes(16).toString('hex');
   const sub = typeof h.agent_id === 'string' && h.agent_id ? h.agent_id : null;
   const body = JSON.stringify({
     sessionId: cut(h.session_id, 200),
@@ -76,10 +89,11 @@ function askPermission(h, cfg) {
   const req = http.request(
     {
       host: '127.0.0.1', port: cfg.port, path: '/permission', method: 'POST',
-      headers: { 'x-kayy-token': cfg.token, 'content-type': 'application/json', 'content-length': Buffer.byteLength(body) },
+      headers: { 'x-kayy-token': cfg.token, 'x-kayy-nonce': nonce, 'content-type': 'application/json', 'content-length': Buffer.byteLength(body) },
       timeout: PERMISSION_WAIT_MS,
     },
     (res) => {
+      if (!proofOk(res.headers['x-kayy-proof'], nonce, cfg.token)) { res.resume(); return done(); }
       let data = '';
       res.setEncoding('utf8');
       res.on('data', (c) => { if (data.length < 4096) data += c; });

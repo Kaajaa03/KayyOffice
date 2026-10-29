@@ -41,6 +41,14 @@ describe('reduce', () => {
     expect(Object.keys(s.agents)).toEqual(['x']);
     expect(Object.keys(pruneStale(s, 1000 + 60_000, 30_000).agents)).toEqual([]);
   });
+  it('pruneStale keeps a waiting agent much longer than others', () => {
+    let s = reduce(initialState(), ev({ sessionId: 'w', agentId: 'w', event: 'Notification', ts: 0 }));
+    s = reduce(s, ev({ sessionId: 'k', agentId: 'k', event: 'PreToolUse', ts: 0 }));
+    const MIN = 60_000;
+    const after20 = pruneStale(s, 20 * MIN, 15 * MIN);
+    expect(Object.keys(after20.agents)).toEqual(['w']);
+    expect(Object.keys(pruneStale(s, 3 * 60 * MIN, 15 * MIN).agents)).toEqual([]);
+  });
   it('SubagentStop without start does not throw or change state', () => {
     const s0 = initialState();
     const s = reduce(s0, ev({ event: 'SubagentStop', agentId: 'nope', parentId: 's1' }));

@@ -1,4 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
+import { createHmac } from 'node:crypto';
 import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -56,6 +57,17 @@ describe('server', () => {
     const a = await start(48110);
     const b = await start(48110);
     expect(b.port).toBe(a.port + 1);
+  });
+  it('proves it knows the token on /permission replies (HMAC of the nonce)', async () => {
+    const s = await startServer({ token: 'tok', port: 48120, onEvent: () => {}, onPermission: async () => 'allow' });
+    closers.push(s.close);
+    const res = await fetch(`http://127.0.0.1:${s.port}/permission`, {
+      method: 'POST',
+      headers: { 'x-kayy-token': 'tok', 'x-kayy-nonce': 'abc123' },
+      body: JSON.stringify({ sessionId: 's', agentId: 's', tool: 'Bash', summary: '' }),
+    });
+    expect(await res.json()).toEqual({ decision: 'allow' });
+    expect(res.headers.get('x-kayy-proof')).toBe(createHmac('sha256', 'tok').update('abc123').digest('hex'));
   });
   it('binds only to 127.0.0.1', async () => {
     const s = await start();

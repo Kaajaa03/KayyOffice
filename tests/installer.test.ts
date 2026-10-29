@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { mkdtempSync, writeFileSync, readFileSync, existsSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { installHooks, uninstallHooks, MARKER } from '../src/main/installer';
+import { installHooks, uninstallHooks, stageHook, MARKER } from '../src/main/installer';
 import { EVENT_NAMES } from '../src/shared/types';
 
 const tmp = () => mkdtempSync(join(tmpdir(), 'kayy-inst-'));
@@ -60,6 +60,19 @@ describe('installHooks', () => {
     const cmd = read(p).hooks.Stop[0].hooks[0].command as string;
     expect(cmd).toContain('"C:/Users/Max Mustermann/x/hook.js"');
     expect(cmd).toContain(MARKER);
+  });
+});
+
+describe('stageHook', () => {
+  it('copies hook.js to a stable per-user location and returns that path', () => {
+    const src = join(tmp(), 'hook.js');
+    writeFileSync(src, '// hook v1');
+    const destDir = join(tmp(), 'KayyOffice');
+    const dest = stageHook(src, destDir);
+    expect(dest).toBe(join(destDir, 'hook.js'));
+    expect(readFileSync(dest, 'utf8')).toBe('// hook v1');
+    writeFileSync(src, '// hook v2');
+    expect(readFileSync(stageHook(src, destDir), 'utf8')).toBe('// hook v2');
   });
 });
 

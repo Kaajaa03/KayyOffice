@@ -1,5 +1,5 @@
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { dirname, join } from 'node:path';
 import { EVENT_NAMES } from '../shared/types';
 
 export const MARKER = '--kayy-office';
@@ -18,6 +18,15 @@ function readSettings(path: string): Settings {
   } catch (err) {
     throw new Error(`Cannot parse ${path} (settings.json is not valid JSON): ${(err as Error).message}`);
   }
+}
+
+/** Copies hook.js to a stable per-user path so settings.json never points into a
+ *  temporary/portable extraction folder or an install dir that may be removed later. */
+export function stageHook(src: string, destDir: string): string {
+  mkdirSync(destDir, { recursive: true });
+  const dest = join(destDir, 'hook.js');
+  copyFileSync(src, dest);
+  return dest;
 }
 
 export function installHooks(settingsPath: string, hookScriptPath: string): { backupPath: string | null } {

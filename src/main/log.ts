@@ -111,9 +111,17 @@ export function renderDevLog(s: DaySummary): string {
   return out.join('\n');
 }
 
+// Prefixed names: the target dir may be a vault whose own notes are called <date>.md.
 export function writeDevLog(dir: string, s: DaySummary): string {
   mkdirSync(dir, { recursive: true });
-  const file = join(dir, `${s.date}.md`);
+  const file = join(dir, `kayy-devlog-${s.date}.md`);
   writeFileSync(file, renderDevLog(s));
+  return file;
+}
+
+export function writeWeekLog(dir: string, endDate: string, log: EventLog): string {
+  mkdirSync(dir, { recursive: true });
+  const file = join(dir, `kayy-week-${endDate}.md`);
+  writeFileSync(file, weekSummary(endDate, log).map(renderDevLog).join('\n---\n\n'));
   return file;
 }

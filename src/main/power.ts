@@ -18,7 +18,8 @@ export class AwakeManager {
   }
 
   update(state: AppState): void {
-    const active = Object.values(state.agents).some((a) => a.status === 'working' || a.status === 'waiting');
+    // 'waiting' = needs the user, not computing: must not hold the PC awake for hours
+    const active = Object.values(state.agents).some((a) => a.status === 'working');
     if (active) {
       this.cancelStop();
       if (this.enabled && this.id === null) this.id = this.blocker.start('prevent-app-suspension');

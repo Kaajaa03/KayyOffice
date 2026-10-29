@@ -1,13 +1,14 @@
 import { app, BrowserWindow, dialog, globalShortcut, ipcMain, Menu, nativeImage, powerSaveBlocker, shell, Tray } from 'electron';
+import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { loadConfig, saveConfigPort } from './config';
 import { PermissionQueue } from './control';
 import { demoState } from './demo';
-import { EventLog, localDate, renderDevLog, weekSummary } from './log';
-import { installHooks, uninstallHooks } from './installer';
+import { EventLog, localDate, writeDevLog, writeWeekLog } from './log';
+import { installHooks, stageHook, uninstallHooks } from './installer';
 import { runPerf } from './perf';
 import { AwakeManager } from './power';
 import { applyRoles, ensureDefaultRoles, loadRoles } from './roles';
@@ -52,15 +53,11 @@ let roles: RoleDef[] = [];
 let rolesPath = '';
 let eventLog = new EventLog(null);
 let devLogDir = '';
+let configDirPath = '';
 
 async function openRecap(week: boolean): Promise<void> {
   const today = localDate(Date.now());
-  const md = week
-    ? weekSummary(today, eventLog).map(renderDevLog).join('\n---\n\n')
-    : renderDevLog(eventLog.day(today));
-  mkdirSync(devLogDir, { recursive: true });
-  const file = join(devLogDir, week ? `week-${today}.md` : `${today}.md`);
-  writeFileSync(file, md);
+  const file = week ? writeWeekLog(devLogDir, today, eventLog) : writeDevLog(devLogDir, eventLog.day(today));
   await shell.openPath(file);
 }
 
@@ -114,8 +111,13 @@ function buildTray(): void {
       label: 'Hooks installieren',
       click: async () => {
         try {
-          const { backupPath } = installHooks(settingsPath(), hookPath());
-          await toast(`Hooks installiert.${backupPath ? `\nBackup: ${backupPath}` : ''}\nNeue Claude-Code-Sessions nutzen sie automatisch.`);
+          const staged = stageHook(hookPath(), configDirPath);
+          const { backupPath } = installHooks(settingsPath(), staged);
+          const noNode = spawnSync('where', ['node'], { windowsHide: true }).status !== 0;
+          await toast(
+            `Hooks installiert (${staged}).${backupPath ? `\nBackup: ${backupPath}` : ''}\nNeue Claude-Code-Sessions nutzen sie automatisch.` +
+            (noNode ? '\n\nACHTUNG: "node" wurde nicht im PATH gefunden. Die Hooks brauchen Node.js, sonst melden sie Fehler.' : ''),
+          );
         } catch (e) { await toast((e as Error).message, 'error'); }
       },
     },
@@ -168,6 +170,7 @@ async function main(): Promise<void> {
 
   const configDir = join(app.getPath('appData'), 'KayyOffice');
   const config = loadConfig(configDir);
+  configDirPath = configDir;
   eventLog = new EventLog(join(configDir, 'logs'));
   devLogDir = config.devLogDir || join(configDir, 'devlog');
   app.on('before-quit', () => eventLog.flush());

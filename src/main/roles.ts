@@ -22,6 +22,7 @@ function valid(r: unknown): r is RoleDef {
   if (typeof r !== 'object' || r === null) return false;
   const d = r as RoleDef;
   if (typeof d.role !== 'string' || typeof d.color !== 'string' || typeof d.match !== 'object' || d.match === null) return false;
+  if (!/^#[0-9a-f]{6}$/i.test(d.color)) return false; // used as canvas gradient base; anything else throws
   const { cwdContains, namePattern } = d.match;
   if (cwdContains === undefined && namePattern === undefined) return false;
   if (cwdContains !== undefined && typeof cwdContains !== 'string') return false;

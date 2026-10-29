@@ -17,6 +17,12 @@ describe('AwakeManager', () => {
     expect(b.start).toHaveBeenCalledTimes(1);
     expect(b.start).toHaveBeenCalledWith('prevent-app-suspension');
   });
+  it('does not block sleep for agents that only wait for the user', () => {
+    const b = blocker();
+    const m = new AwakeManager(b);
+    m.update(st('waiting', 'idle'));
+    expect(b.start).not.toHaveBeenCalled();
+  });
   it('stops 60 s after all agents are idle/done', () => {
     vi.useFakeTimers();
     const b = blocker();

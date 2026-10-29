@@ -3,7 +3,8 @@ import { CARD_H, CARD_W, drawPermissionCard } from './card';
 import type { Hit } from './card';
 import { CELL_H, CELL_W, DeskLayout, rowCount } from './scene';
 import type { Desk } from './scene';
-import { FrameGate } from './loop';
+import { ClickGuard } from './clickguard';
+import { FrameGate, animationMode } from './loop';
 import { projectOf } from '../shared/project';
 import { drawBackground, drawDesk, drawPlate } from './sprites';
 
@@ -20,6 +21,7 @@ const canvas = document.getElementById('c') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d')!;
 const layout = new DeskLayout();
 const gate = new FrameGate({ activeFps: 60, idleFps: 10 });
+const guard = new ClickGuard();
 
 let state: AppState = { agents: {} };
 let permissions: PermissionRequestInfo[] = [];
@@ -45,10 +47,6 @@ function projectRuns(desks: Desk[]): Array<{ x: number; y: number; w: number; na
     else runs.push({ x: d.x, y: d.y, w: CELL_W, name, row: d.row, last: d.slot });
   }
   return runs;
-}
-
-function hasAnimation(): boolean {
-  return Object.values(state.agents).some((a) => a.status !== 'idle');
 }
 
 function draw(now: number): void {
@@ -79,18 +77,23 @@ function draw(now: number): void {
   }
 }
 
+function safeDraw(now: number): void {
+  try { draw(now); } catch (e) { console.error('draw failed', e); }
+}
+
 function frame(now: number): void {
   if (!visible) { looping = false; return; }
-  const animated = hasAnimation();
-  if (gate.shouldDraw(now, animated, visible)) draw(now);
-  if (animated) requestAnimationFrame(frame);
+  const mode = animationMode(Object.values(state.agents));
+  if (gate.shouldDraw(now, mode === 'fast', visible)) safeDraw(now);
+  if (mode === 'fast') requestAnimationFrame(frame);
+  else if (mode === 'slow') setTimeout(() => frame(performance.now()), 100);
   else looping = false;
 }
 
 function wake(): void {
   if (looping || !visible) return;
   looping = true;
-  requestAnimationFrame((t) => { draw(t); frame(t + 1000); });
+  requestAnimationFrame(frame);
 }
 
 const hitAt = (x: number, y: number): Hit | null =>
@@ -102,16 +105,18 @@ window.addEventListener('mousemove', (e) => {
   if (want !== interactive) { interactive = want; kayy.setInteractive(want); canvas.style.cursor = want ? 'pointer' : 'default'; }
   if (h?.id !== hover?.id || h?.decision !== hover?.decision) { hover = h; draw(performance.now()); }
 });
-window.addEventListener('click', (e) => {
-  const h = hitAt(e.clientX, e.clientY);
+window.addEventListener('mousedown', (e) => guard.down(hitAt(e.clientX, e.clientY), performance.now()));
+window.addEventListener('mouseup', (e) => {
+  const h = guard.up(hitAt(e.clientX, e.clientY), performance.now());
   if (h) kayy.decide(h.id, h.decision);
 });
 
-kayy.onState((s) => { state = s; wake(); draw(performance.now()); });
+kayy.onState((s) => { state = s; wake(); safeDraw(performance.now()); });
 kayy.onPermissions((p) => {
   permissions = p;
+  guard.show(p[0]?.id ?? null, performance.now());
   if (!p.length && interactive) { interactive = false; hover = null; kayy.setInteractive(false); }
-  draw(performance.now());
+  safeDraw(performance.now());
 });
 kayy.onVisibility((v) => { visible = v; if (v) wake(); });
 window.addEventListener('resize', () => { resize(); draw(performance.now()); });
