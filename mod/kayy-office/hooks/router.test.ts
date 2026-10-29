@@ -26,7 +26,7 @@ test('routes a spawn, keeps a caller model, and shows counts and cost', async ($
   await spawn($, 'Explore')
   await spawn($, 'Explore', 'opus')
   expect(models).toEqual(['haiku', 'opus'])
-  expect(statuses.at(-1)).toBe('haiku 1 · sonnet 0 · opus 1 · $0.42')
+  expect(statuses.at(-1)).toBe('haiku 1 · opus 1 · $0.42')
 })
 
 test('a failing rules read still lets spawns through on defaults', async ($, on) => {
@@ -45,7 +45,7 @@ test('a resumed agent is neither rerouted nor counted', async ($, on) => {
 test('the status line is refreshed when a turn completes', async ($, on) => {
   const { statuses } = await setup($, on, '{}')
   await $.turn.complete({ reason: 'answer', answer: '', durationMs: 1, isAborted: false, turnId: 't1' })
-  expect(statuses.at(-1)).toBe('haiku 0 · sonnet 0 · opus 0 · $0.42')
+  expect(statuses.at(-1)).toBe('Router bereit · $0.42')
 })
 
 const run = ($: any, args: string) => $.command.run({ command: 'router', args })
