@@ -46,6 +46,11 @@ describe('reduce', () => {
     const s = reduce(s0, ev({ event: 'SubagentStop', agentId: 'nope', parentId: 's1' }));
     expect(s).toEqual(s0);
   });
+  it('keeps the agent name from agentType across later events', () => {
+    let s = reduce(initialState(), ev({ event: 'SubagentStart', agentId: 'a2', parentId: 's1', agentType: 'Explore' }));
+    s = reduce(s, ev({ agentId: 'a2', parentId: 's1', tool: 'Read' }));
+    expect(s.agents.a2.name).toBe('Explore');
+  });
   it('two sessions in same cwd -> two agents', () => {
     let s = reduce(initialState(), ev({ sessionId: 'a', agentId: 'a' }));
     s = reduce(s, ev({ sessionId: 'b', agentId: 'b' }));

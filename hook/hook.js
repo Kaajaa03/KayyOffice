@@ -30,6 +30,7 @@ function toEvent(h) {
     agentId: sub || cut(h.session_id, 200),
     ...(sub ? { parentId: cut(h.session_id, 200) } : {}),
     event: h.hook_event_name,
+    agentType: cut(h.agent_type, 100),
     tool: cut(h.tool_name, 100),
     cwd: cut(h.cwd || '', 500),
     message,

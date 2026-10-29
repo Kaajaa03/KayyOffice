@@ -17,6 +17,8 @@ function upsert(state: AppState, e: AgentEvent, patch: Partial<Agent>): AppState
     status: prev?.status ?? 'idle',
     category: prev?.category,
     role: prev?.role,
+    color: prev?.color,
+    name: e.agentType ?? prev?.name,
     message: undefined,
     ...patch,
     lastEventTs: e.ts,

@@ -2,8 +2,10 @@ import type { AppState, PermissionRequestInfo } from '../shared/types';
 import { CARD_H, CARD_W, drawPermissionCard } from './card';
 import type { Hit } from './card';
 import { CELL_H, CELL_W, DeskLayout, rowCount } from './scene';
+import type { Desk } from './scene';
 import { FrameGate } from './loop';
-import { drawBackground, drawDesk } from './sprites';
+import { projectOf } from '../shared/project';
+import { drawBackground, drawDesk, drawPlate } from './sprites';
 
 interface KayyApi {
   onState(cb: (s: AppState) => void): void;
@@ -33,6 +35,18 @@ function resize(): void {
   canvas.height = Math.round(window.innerHeight * dpr);
 }
 
+/** Consecutive desks of one project on one row form a "room". */
+function projectRuns(desks: Desk[]): Array<{ x: number; y: number; w: number; name: string }> {
+  const runs: Array<{ x: number; y: number; w: number; name: string; row: number; last: number }> = [];
+  for (const d of desks) {
+    const name = projectOf(state.agents[d.agentId]);
+    const cur = runs[runs.length - 1];
+    if (cur && cur.name === name && cur.row === d.row && cur.last + 1 === d.slot) { cur.w += CELL_W; cur.last = d.slot; }
+    else runs.push({ x: d.x, y: d.y, w: CELL_W, name, row: d.row, last: d.slot });
+  }
+  return runs;
+}
+
 function hasAnimation(): boolean {
   return Object.values(state.agents).some((a) => a.status !== 'idle');
 }
@@ -53,7 +67,9 @@ function draw(now: number): void {
     ctx.save();
     ctx.translate(Math.round((w - used) / 2), 0);
     drawBackground(ctx, used, rows, new Date().getHours());
-    for (const d of desks) if (d.row < rows) drawDesk(ctx, state.agents[d.agentId], d, now);
+    const visibleDesks = desks.filter((d) => d.row < rows).sort((a, b) => a.slot - b.slot);
+    for (const run of projectRuns(visibleDesks)) drawPlate(ctx, run.x, run.y, run.w, run.name);
+    for (const d of visibleDesks) { const a = state.agents[d.agentId]; drawDesk(ctx, a, d, now, a.color); }
     ctx.restore();
     panelH = rows * CELL_H;
   }

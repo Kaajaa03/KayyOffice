@@ -29,6 +29,14 @@ describe('DeskLayout', () => {
     const s = d.find((x) => x.agentId === 's')!;
     expect(s.slot).toBe(p.slot + 1);
   });
+  it('seats a new agent next to its project mates instead of in the lowest free slot', () => {
+    const P1 = 'C:\\x\\P1', P2 = 'C:\\x\\P2';
+    const l = new DeskLayout();
+    l.layout([ag('p', { cwd: P1 }), ag('q', { cwd: P2 }), ag('r', { cwd: P2 })], 900); // slots 0,1,2
+    l.layout([ag('q', { cwd: P2 }), ag('r', { cwd: P2 })], 900); // p leaves, slot 0 is free
+    const d = l.layout([ag('q', { cwd: P2 }), ag('r', { cwd: P2 }), ag('s', { cwd: P2 })], 900);
+    expect(d.find((x) => x.agentId === 's')!.slot).toBe(3);
+  });
   it('wraps to a new row when the width is exceeded', () => {
     const agents = Array.from({ length: 5 }, (_, i) => ag('a' + i));
     const d = new DeskLayout().layout(agents, CELL_W * 2);

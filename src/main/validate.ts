@@ -19,6 +19,8 @@ export function parseEvent(raw: unknown): AgentEvent | null {
   const parentId = str(r.parentId, 200);
   const tool = str(r.tool, 100);
   const message = str(r.message, 500);
+  const agentType = str(r.agentType, 100);
+  if (agentType) out.agentType = agentType;
   if (parentId) out.parentId = parentId;
   if (tool) out.tool = tool;
   if (message !== undefined) out.message = message;

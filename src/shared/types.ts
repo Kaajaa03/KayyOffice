@@ -25,6 +25,7 @@ export interface AgentEvent {
   agentId: string;
   parentId?: string;
   event: EventName;
+  agentType?: string;
   tool?: string;
   cwd: string;
   message?: string;
@@ -42,7 +43,11 @@ export interface Agent {
   category?: ToolCategory;
   lastEventTs: number;
   message?: string;
+  /** Subagent type reported by Claude Code (e.g. "Explore"). */
+  name?: string;
+  /** Set by roles.json matching (main process). */
   role?: string;
+  color?: string;
 }
 
 export type PermissionDecision = 'allow' | 'deny' | 'ask';

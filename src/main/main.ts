@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, globalShortcut, ipcMain, Menu, nativeImage, powerSaveBlocker, Tray } from 'electron';
+import { app, BrowserWindow, dialog, globalShortcut, ipcMain, Menu, nativeImage, powerSaveBlocker, shell, Tray } from 'electron';
 import { randomUUID } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -9,6 +9,8 @@ import { demoState } from './demo';
 import { installHooks, uninstallHooks } from './installer';
 import { runPerf } from './perf';
 import { AwakeManager } from './power';
+import { applyRoles, ensureDefaultRoles, loadRoles } from './roles';
+import type { RoleDef } from './roles';
 import { startServer } from './server';
 import { initialState, pruneStale, reduce, tick } from './state';
 import { createOverlay, toggleOverlay } from './window';
@@ -44,10 +46,13 @@ function showOverlay(): void {
   win.webContents.send('visibility', true);
 }
 
+let roles: RoleDef[] = [];
+let rolesPath = '';
+
 function publish(): void {
   awake.update(state);
   if (publishTimer) { publishDirty = true; return; }
-  if (!win.isDestroyed()) win.webContents.send('state', state);
+  if (!win.isDestroyed()) win.webContents.send('state', applyRoles(state, roles));
   publishTimer = setTimeout(() => {
     publishTimer = null;
     if (publishDirty) { publishDirty = false; publish(); }
@@ -106,6 +111,8 @@ function buildTray(): void {
         catch (e) { await toast((e as Error).message, 'error'); }
       },
     },
+    { label: 'Rollen-Datei öffnen (roles.json)', click: () => void shell.openPath(rolesPath) },
+    { label: 'Rollen neu laden', click: () => { roles = loadRoles(rolesPath); publish(); } },
     {
       label: 'Wach bleiben, solange Agents arbeiten',
       type: 'checkbox',
@@ -137,10 +144,13 @@ async function main(): Promise<void> {
 
   const configDir = join(app.getPath('appData'), 'KayyOffice');
   const config = loadConfig(configDir);
+  rolesPath = join(configDir, 'roles.json');
+  ensureDefaultRoles(rolesPath);
+  roles = loadRoles(rolesPath);
   win = createOverlay();
   win.webContents.on('did-finish-load', () => {
     win.webContents.send('visibility', true);
-    win.webContents.send('state', state);
+    win.webContents.send('state', applyRoles(state, roles));
     win.webContents.send('permissions', queue.pending());
   });
 

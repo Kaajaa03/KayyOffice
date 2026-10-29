@@ -35,6 +35,20 @@ export function drawBackground(c: Ctx, w: number, rows: number, hour: number): v
   c.stroke();
 }
 
+/** Project nameplate above a run of desks that belong to the same project. */
+export function drawPlate(c: Ctx, x: number, y: number, w: number, name: string): void {
+  c.save();
+  c.fillStyle = 'rgba(255,255,255,0.05)';
+  c.beginPath();
+  c.roundRect(x + 3, y + 3, w - 6, CELL_H - 8, 10);
+  c.fill();
+  c.font = '700 10px ui-monospace, Consolas, monospace';
+  c.textAlign = 'left';
+  c.fillStyle = 'rgba(229,231,235,0.55)';
+  c.fillText(('▸ ' + name).slice(0, Math.max(4, Math.floor((w - 16) / 6.2))), x + 10, y + 15);
+  c.restore();
+}
+
 function screen(c: Ctx, agent: Agent, t: number): void {
   const sx = 10, sy = 20; // 16x6 units
   switch (agent.status) {
