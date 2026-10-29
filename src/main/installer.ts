@@ -4,7 +4,7 @@ import { EVENT_NAMES } from '../shared/types';
 
 export const MARKER = '--kayy-office';
 
-interface HookEntry { matcher?: string; hooks?: Array<{ type: string; command?: string }> }
+interface HookEntry { matcher?: string; hooks?: Array<{ type: string; command?: string; timeout?: number }> }
 type Settings = { hooks?: Record<string, HookEntry[]> } & Record<string, unknown>;
 
 const isOurs = (e: HookEntry) => !!e.hooks?.some((h) => h.command?.includes(MARKER));
@@ -35,6 +35,11 @@ export function installHooks(settingsPath: string, hookScriptPath: string): { ba
     if (name === 'PreToolUse' || name === 'PostToolUse') ours.matcher = '*';
     hooks[name] = [...kept, ours];
   }
+  const keptPerm = (hooks.PermissionRequest ?? []).filter((e) => !isOurs(e));
+  hooks.PermissionRequest = [
+    ...keptPerm,
+    { matcher: '*', hooks: [{ type: 'command', command: `${command} --permission`, timeout: 30 }] },
+  ];
   settings.hooks = hooks;
   mkdirSync(dirname(settingsPath), { recursive: true });
   writeFileSync(settingsPath, JSON.stringify(settings, null, 2));

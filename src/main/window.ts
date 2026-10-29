@@ -2,7 +2,7 @@ import { BrowserWindow, screen } from 'electron';
 import { join } from 'node:path';
 
 export const OVERLAY_W = 900;
-export const OVERLAY_H = 300;
+export const OVERLAY_H = 400;
 
 export function createOverlay(): BrowserWindow {
   const wa = screen.getPrimaryDisplay().workArea;

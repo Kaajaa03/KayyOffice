@@ -45,6 +45,23 @@ export interface Agent {
   role?: string;
 }
 
+export type PermissionDecision = 'allow' | 'deny' | 'ask';
+
+export interface PermissionPayload {
+  sessionId: string;
+  agentId: string;
+  tool: string;
+  summary: string;
+}
+
+export interface PermissionRequestInfo {
+  id: string;
+  agentId: string;
+  tool: string;
+  summary: string;
+  ts: number;
+}
+
 export interface AppState {
   agents: Record<string, Agent>;
 }

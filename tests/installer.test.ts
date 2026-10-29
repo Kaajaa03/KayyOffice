@@ -16,6 +16,14 @@ describe('installHooks', () => {
     const s = read(p);
     for (const e of EVENT_NAMES) expect(s.hooks[e]).toBeDefined();
   });
+  it('registers a blocking PermissionRequest hook with a 30 s timeout', () => {
+    const p = join(tmp(), 'settings.json');
+    installHooks(p, HOOK);
+    const h = read(p).hooks.PermissionRequest[0].hooks[0];
+    expect(h.command).toContain('--permission');
+    expect(h.command).toContain(MARKER);
+    expect(h.timeout).toBe(30);
+  });
   it('keeps foreign hooks and other settings', () => {
     const p = join(tmp(), 'settings.json');
     const foreign = { hooks: [{ type: 'command', command: 'echo hi' }] };

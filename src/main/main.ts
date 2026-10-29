@@ -1,11 +1,14 @@
-import { app, BrowserWindow, dialog, globalShortcut, Menu, nativeImage, Tray } from 'electron';
+import { app, BrowserWindow, dialog, globalShortcut, ipcMain, Menu, nativeImage, powerSaveBlocker, Tray } from 'electron';
+import { randomUUID } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { loadConfig, saveConfigPort } from './config';
+import { PermissionQueue } from './control';
 import { demoState } from './demo';
 import { installHooks, uninstallHooks } from './installer';
 import { runPerf } from './perf';
+import { AwakeManager } from './power';
 import { startServer } from './server';
 import { initialState, pruneStale, reduce, tick } from './state';
 import { createOverlay, toggleOverlay } from './window';
@@ -26,7 +29,23 @@ let publishTimer: NodeJS.Timeout | null = null;
 let publishDirty = false;
 let housekeeping: NodeJS.Timeout | null = null;
 
+const awake = new AwakeManager({
+  start: (type) => powerSaveBlocker.start(type),
+  stop: (id) => powerSaveBlocker.stop(id),
+});
+
+const queue = new PermissionQueue({
+  onChange: () => { if (win && !win.isDestroyed()) win.webContents.send('permissions', queue.pending()); },
+});
+
+function showOverlay(): void {
+  if (win.isVisible()) return;
+  win.showInactive();
+  win.webContents.send('visibility', true);
+}
+
 function publish(): void {
+  awake.update(state);
   if (publishTimer) { publishDirty = true; return; }
   if (!win.isDestroyed()) win.webContents.send('state', state);
   publishTimer = setTimeout(() => {
@@ -87,6 +106,12 @@ function buildTray(): void {
         catch (e) { await toast((e as Error).message, 'error'); }
       },
     },
+    {
+      label: 'Wach bleiben, solange Agents arbeiten',
+      type: 'checkbox',
+      checked: true,
+      click: (item) => awake.setEnabled(item.checked),
+    },
     { type: 'separator' },
     { label: 'Beenden', click: () => app.quit() },
   ]));
@@ -116,15 +141,40 @@ async function main(): Promise<void> {
   win.webContents.on('did-finish-load', () => {
     win.webContents.send('visibility', true);
     win.webContents.send('state', state);
+    win.webContents.send('permissions', queue.pending());
   });
+
+  ipcMain.on('interactive', (_e, v: unknown) => {
+    if (typeof v === 'boolean') win.setIgnoreMouseEvents(!v, { forward: true });
+  });
+  ipcMain.on('permission:decide', (_e, id: unknown, decision: unknown) => {
+    if (typeof id !== 'string' || (decision !== 'allow' && decision !== 'deny')) return;
+    const info = queue.pending().find((p) => p.id === id);
+    if (!info || !queue.resolve(id, decision)) return;
+    const a = state.agents[info.agentId];
+    if (a) { state = reduce(state, { ts: Date.now(), sessionId: a.sessionId, agentId: a.id, event: 'PreToolUse', tool: info.tool, cwd: a.cwd }); publish(); }
+  });
+  app.on('before-quit', () => queue.dispose());
 
   if (flag('demo')) {
     state = demoState();
+    void queue.add({ id: 'demo', agentId: 'reviewer', tool: 'Bash', summary: 'npm run build && node dist/main.js' });
   } else {
     const server = await startServer({
       token: config.token,
       port: config.port,
       onEvent: (e) => { state = reduce(state, e); syncHousekeeping(); publish(); },
+      onPermission: (p, signal) => {
+        const known = state.agents[p.agentId];
+        state = reduce(state, {
+          ts: Date.now(), sessionId: p.sessionId, agentId: p.agentId, event: 'Notification',
+          cwd: known?.cwd ?? '', message: `permission: ${p.tool}`,
+        });
+        syncHousekeeping();
+        publish();
+        showOverlay();
+        return queue.add({ id: randomUUID(), agentId: p.agentId, tool: p.tool, summary: p.summary }, signal);
+      },
     });
     if (server.port !== config.port) saveConfigPort(configDir, server.port);
     app.on('before-quit', () => { void server.close(); });

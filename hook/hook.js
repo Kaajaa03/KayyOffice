@@ -54,6 +54,53 @@ function send(event, cfg) {
   req.end(body);
 }
 
+// --- blocking permission mode (PermissionRequest hook) -------------------
+const PERMISSION_WAIT_MS = 26000;
+
+function summarize(input) {
+  if (!input || typeof input !== 'object') return '';
+  if (typeof input.command === 'string') return input.command.slice(0, 300);
+  if (typeof input.file_path === 'string') return input.file_path.slice(0, 300);
+  try { return JSON.stringify(input).slice(0, 300); } catch { return ''; }
+}
+
+function askPermission(h, cfg) {
+  const sub = typeof h.agent_id === 'string' && h.agent_id ? h.agent_id : null;
+  const body = JSON.stringify({
+    sessionId: cut(h.session_id, 200),
+    agentId: sub || cut(h.session_id, 200),
+    tool: cut(h.tool_name, 100),
+    summary: summarize(h.tool_input),
+  });
+  const req = http.request(
+    {
+      host: '127.0.0.1', port: cfg.port, path: '/permission', method: 'POST',
+      headers: { 'x-kayy-token': cfg.token, 'content-type': 'application/json', 'content-length': Buffer.byteLength(body) },
+      timeout: PERMISSION_WAIT_MS,
+    },
+    (res) => {
+      let data = '';
+      res.setEncoding('utf8');
+      res.on('data', (c) => { if (data.length < 4096) data += c; });
+      res.on('end', () => {
+        try {
+          const { decision } = JSON.parse(data);
+          if (decision === 'allow' || decision === 'deny') {
+            process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PermissionRequest', decision: { behavior: decision } } }));
+          }
+        } catch { /* no decision -> normal prompt */ }
+        done();
+      });
+      res.on('error', done);
+    },
+  );
+  req.on('timeout', () => { req.destroy(); done(); });
+  req.on('error', done);
+  req.end(body);
+}
+
+const permissionMode = process.argv.includes('--permission');
+
 let input = '';
 let tooBig = false;
 process.stdin.setEncoding('utf8');
@@ -66,6 +113,11 @@ process.stdin.on('error', done);
 process.stdin.on('end', () => {
   try {
     if (tooBig) return done();
+    if (permissionMode) {
+      const h = JSON.parse(input);
+      if (!h || !h.session_id || !h.tool_name) return done();
+      return askPermission(h, JSON.parse(fs.readFileSync(path.join(configDir(), 'config.json'), 'utf8')));
+    }
     const event = toEvent(JSON.parse(input));
     if (!event) return done();
     const cfg = JSON.parse(fs.readFileSync(path.join(configDir(), 'config.json'), 'utf8'));
