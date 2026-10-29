@@ -56,6 +56,19 @@ export class DeskLayout {
   }
 }
 
+export interface OfficeStats { total: number; working: number; waiting: number; costUsd: number | null }
+
+/** Footer numbers; cost sums top-level sessions only (subagent cost is part of its session). */
+export function officeStats(agents: Agent[]): OfficeStats {
+  let working = 0, waiting = 0, cost = 0, hasCost = false;
+  for (const a of agents) {
+    if (a.status === 'working') working++;
+    if (a.status === 'waiting') waiting++;
+    if (!a.parentId && a.costUsd !== undefined) { cost += a.costUsd; hasCost = true; }
+  }
+  return { total: agents.length, working, waiting, costUsd: hasCost ? +cost.toFixed(4) : null };
+}
+
 export function rowCount(desks: Desk[]): number {
   return desks.length ? Math.max(...desks.map((d) => d.row)) + 1 : 0;
 }

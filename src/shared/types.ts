@@ -29,6 +29,14 @@ export interface AgentEvent {
   tool?: string;
   cwd: string;
   message?: string;
+  /** Who produced the event: the Claude mod (preferred) or a classic hook. */
+  source?: 'mod' | 'hook';
+  /** Model alias/id of the agent (e.g. "haiku", "claude-opus-5-5"). */
+  model?: string;
+  /** File the tool works on (file_path), shortened. */
+  file?: string;
+  /** Session cost so far in USD (reported on session-level events). */
+  costUsd?: number;
 }
 
 export type AgentStatus = 'idle' | 'working' | 'waiting' | 'done' | 'error';
@@ -48,6 +56,10 @@ export interface Agent {
   /** Set by roles.json matching (main process). */
   role?: string;
   color?: string;
+  model?: string;
+  /** File the agent is currently working on (cleared on Stop / next tool). */
+  file?: string;
+  costUsd?: number;
 }
 
 export type PermissionDecision = 'allow' | 'deny' | 'ask';
@@ -57,6 +69,7 @@ export interface PermissionPayload {
   agentId: string;
   tool: string;
   summary: string;
+  source?: 'mod' | 'hook';
 }
 
 export interface PermissionRequestInfo {

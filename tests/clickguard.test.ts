@@ -27,6 +27,14 @@ describe('ClickGuard', () => {
     g.down({ id: 'r1', decision: 'deny' }, 5000);
     expect(g.up(allow('r1'), 5000)).toBeNull();
   });
+  it('a custom (longer) delay for risky requests', () => {
+    const g = new ClickGuard();
+    g.show('r1', 0, 1500);
+    g.down(allow('r1'), 1499);
+    expect(g.up(allow('r1'), 1499)).toBeNull();
+    g.down(allow('r1'), 1500);
+    expect(g.up(allow('r1'), 1500)).toEqual(allow('r1'));
+  });
   it('re-showing the same card id does not re-arm the delay', () => {
     const g = new ClickGuard();
     g.show('r1', 0);

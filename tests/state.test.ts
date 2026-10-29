@@ -59,6 +59,18 @@ describe('reduce', () => {
     s = reduce(s, ev({ agentId: 'a2', parentId: 's1', tool: 'Read' }));
     expect(s.agents.a2.name).toBe('Explore');
   });
+  it('tracks current file, sticky model and cost; clears file on Stop', () => {
+    let s = reduce(initialState(), ev({ tool: 'Edit', file: 'C:\\p\\a.ts', model: 'sonnet' }));
+    expect(s.agents.s1).toMatchObject({ file: 'C:\\p\\a.ts', model: 'sonnet' });
+    s = reduce(s, ev({ event: 'PostToolUse', tool: 'Edit' }));
+    expect(s.agents.s1.file).toBe('C:\\p\\a.ts'); // stays until the next tool or Stop
+    s = reduce(s, ev({ event: 'PreToolUse', tool: 'Bash' }));
+    expect(s.agents.s1.file).toBeUndefined();
+    expect(s.agents.s1.model).toBe('sonnet');
+    s = reduce(s, ev({ event: 'Stop', costUsd: 0.42 }));
+    expect(s.agents.s1).toMatchObject({ costUsd: 0.42, model: 'sonnet' });
+    expect(s.agents.s1.file).toBeUndefined();
+  });
   it('two sessions in same cwd -> two agents', () => {
     let s = reduce(initialState(), ev({ sessionId: 'a', agentId: 'a' }));
     s = reduce(s, ev({ sessionId: 'b', agentId: 'b' }));

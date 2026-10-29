@@ -1,5 +1,21 @@
 import { describe, it, expect } from 'vitest';
-import { DeskLayout, CELL_W } from '../src/renderer/scene';
+import { DeskLayout, CELL_W, officeStats } from '../src/renderer/scene';
+
+describe('officeStats', () => {
+  const a = (id: string, o: Partial<Agent>): Agent => ({ id, sessionId: id, cwd: 'x', status: 'idle', lastEventTs: 1, ...o });
+  it('counts agents/working/waiting and sums cost of top-level sessions only', () => {
+    const s = officeStats([
+      a('s1', { status: 'working', costUsd: 0.5 }),
+      a('sub', { status: 'working', parentId: 's1', costUsd: 9 }),
+      a('s2', { status: 'waiting', costUsd: 0.25 }),
+      a('s3', {}),
+    ]);
+    expect(s).toEqual({ total: 4, working: 2, waiting: 1, costUsd: 0.75 });
+  });
+  it('costUsd is null when no session reported any', () => {
+    expect(officeStats([a('s1', {})]).costUsd).toBeNull();
+  });
+});
 import type { Agent } from '../src/shared/types';
 
 const ag = (id: string, o: Partial<Agent> = {}): Agent => ({

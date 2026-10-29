@@ -42,6 +42,15 @@ Verhalten und Tests von `kayy-router` (Ordner `C:\Users\kaja\.claude\dev-mods\22
 - `AgentEvent`/`Agent`: `source`, `model`, `costUsd`; Mod-Vorrang vor Hooks je Session; `/permission` ignoriert Hook-Anfragen von Mod-Sessions.
 - Modell-Chip (H/S/O, Farbe) am Schreibtisch, Kosten-Zeile in der Fußzeile, leerer Zustand + Demo-Knopf + Willkommensfenster (Bedienung für Einsteiger).
 
+## Ideen aus den Video-Mods (kostenlos, 0 Tokens; Entscheidung Kaja 2026-10-29)
+- **Blast Radius** → Overlay-Karte: reine lokale Funktion `riskOf(tool, summary)` erkennt `rm -r/-rf`, `Remove-Item -Recurse`, `git reset --hard`, `git push --force/-f`, `git clean -f`, `drop table`, `format`/`del /s` u. ä.; Karte zeigt rote Warnzeile + was betroffen ist (Pfad/Ziel aus dem Befehl), Arming-Delay bei hohem Risiko 1500 ms. Kein LLM.
+- **Filetree / Replay Theater** → Feld `file?` (gekürzter Pfad aus `file_path` / Bash-Befehl nicht geraten) in Events; Schreibtisch zeigt die aktuelle Datei, Dev-Log listet bearbeitete Dateien pro Agent (Top 5).
+- **Savvy Progress** → Modell-Chip (H/S/O) am Schreibtisch, Session-Kosten in der Fußzeile des Büros und im Pane.
+- **/router [status|on|off]** → im Mod enthalten (siehe Router).
+- Bewusst nicht: Cache Tax (Pings kosten Tokens), Reflect, Skins, Terminal Browser.
+
+Protokoll-Ergänzung: `AgentEvent.file?: string` (max. 200 Zeichen, `file_path` des Tools, auf den Hook- und Mod-Seiten befüllt).
+
 ## Nicht-Ziele
 Kein Umschalten des Haupt-Chat-Modells, keine LLM-Klassifikation, keine Netzwerkziele außer 127.0.0.1, keine Secrets in Logs/Events.
 

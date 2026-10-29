@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { startServer } from '../src/main/server';
-import { loadConfig, saveConfigPort } from '../src/main/config';
+import { loadConfig, saveConfigPort, updateConfig } from '../src/main/config';
 import type { AgentEvent } from '../src/shared/types';
 
 const good: AgentEvent = { ts: 1, sessionId: 's', agentId: 's', event: 'PreToolUse', cwd: 'C:\\x', tool: 'Bash' };
@@ -28,6 +28,16 @@ describe('config', () => {
     expect(loadConfig(dir).token).toBe(c1.token);
     saveConfigPort(dir, 47830);
     expect(JSON.parse(readFileSync(join(dir, 'config.json'), 'utf8')).port).toBe(47830);
+  });
+});
+
+describe('updateConfig', () => {
+  it('merges a patch, keeps token and port, persists welcomeShown', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'kayy-'));
+    const c1 = loadConfig(dir);
+    updateConfig(dir, { welcomeShown: true });
+    const c2 = loadConfig(dir);
+    expect(c2).toMatchObject({ token: c1.token, port: c1.port, welcomeShown: true });
   });
 });
 
@@ -68,6 +78,18 @@ describe('server', () => {
     });
     expect(await res.json()).toEqual({ decision: 'allow' });
     expect(res.headers.get('x-kayy-proof')).toBe(createHmac('sha256', 'tok').update('abc123').digest('hex'));
+  });
+  it('passes the permission source (mod) through and drops unknown sources', async () => {
+    const seen: unknown[] = [];
+    const s = await startServer({ token: 'tok', port: 48125, onEvent: () => {}, onPermission: async (p) => { seen.push(p.source); return 'ask'; } });
+    closers.push(s.close);
+    const send = (source: string) => fetch(`http://127.0.0.1:${s.port}/permission`, {
+      method: 'POST', headers: { 'x-kayy-token': 'tok' },
+      body: JSON.stringify({ sessionId: 's', agentId: 's', tool: 'Bash', summary: '', source }),
+    });
+    await send('mod');
+    await send('weird');
+    expect(seen).toEqual(['mod', undefined]);
   });
   it('binds only to 127.0.0.1', async () => {
     const s = await start();

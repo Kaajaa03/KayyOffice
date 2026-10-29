@@ -1,9 +1,10 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { projectOf } from '../shared/project';
+import { toolCategory } from '../shared/types';
 import type { AgentEvent } from '../shared/types';
 
-export interface AgentDay { toolCalls: number; activeMs: number; projects: string[] }
+export interface AgentDay { toolCalls: number; activeMs: number; projects: string[]; files: string[] }
 export interface DaySummary { date: string; perAgent: Record<string, AgentDay> }
 
 const FLUSH_MS = 10_000;
@@ -66,7 +67,7 @@ export class EventLog {
   }
 
   private ingest(s: DaySummary, e: AgentEvent, open = this.open): void {
-    const a = (s.perAgent[e.agentId] ??= { toolCalls: 0, activeMs: 0, projects: [] });
+    const a = (s.perAgent[e.agentId] ??= { toolCalls: 0, activeMs: 0, projects: [], files: [] });
     if (e.cwd) {
       const p = projectOf(e);
       if (!a.projects.includes(p)) a.projects.push(p);
@@ -74,6 +75,10 @@ export class EventLog {
     if (e.event === 'PreToolUse') {
       a.toolCalls++;
       open.set(e.agentId, e.ts);
+      if (e.file && toolCategory(e.tool) === 'code') {
+        const name = e.file.split(/[\\/]/).filter(Boolean).pop()!;
+        a.files = [...a.files.filter((f) => f !== name), name].slice(-5);
+      }
     } else if (e.event === 'PostToolUse') {
       const t0 = open.get(e.agentId);
       if (t0 !== undefined) { a.activeMs += Math.max(0, e.ts - t0); open.delete(e.agentId); }
@@ -105,7 +110,10 @@ export function renderDevLog(s: DaySummary): string {
   if (!byProject.size) out.push('_Keine Agent-Aktivität._');
   for (const [project, agents] of byProject) {
     out.push(`## ${project}`);
-    for (const [agent, d] of agents) out.push(`- **${agent}** — ${d.toolCalls} Tool-Calls, aktiv ${minutes(d.activeMs)}`);
+    for (const [agent, d] of agents) {
+      const files = d.files?.length ? ` — Dateien: ${d.files.join(', ')}` : '';
+      out.push(`- **${agent}** — ${d.toolCalls} Tool-Calls, aktiv ${minutes(d.activeMs)}${files}`);
+    }
     out.push('');
   }
   return out.join('\n');

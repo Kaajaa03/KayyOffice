@@ -33,6 +33,7 @@ function toEvent(h) {
     event: h.hook_event_name,
     agentType: cut(h.agent_type, 100),
     tool: cut(h.tool_name, 100),
+    file: h.tool_input && typeof h.tool_input === 'object' ? cut(h.tool_input.file_path || h.tool_input.notebook_path, 200) : undefined,
     cwd: cut(h.cwd || '', 500),
     message,
   };

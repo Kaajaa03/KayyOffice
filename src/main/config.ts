@@ -6,6 +6,7 @@ export interface Config {
   token: string;
   port: number;
   devLogDir?: string;
+  welcomeShown?: boolean;
 }
 
 export const DEFAULT_PORT = 47821;
@@ -28,7 +29,11 @@ export function loadConfig(dir: string): Config {
   return fresh;
 }
 
-export function saveConfigPort(dir: string, port: number): void {
+export function updateConfig(dir: string, patch: Partial<Config>): void {
   const c = loadConfig(dir);
-  writeFileSync(join(dir, 'config.json'), JSON.stringify({ ...c, port }, null, 2));
+  writeFileSync(join(dir, 'config.json'), JSON.stringify({ ...c, ...patch }, null, 2));
+}
+
+export function saveConfigPort(dir: string, port: number): void {
+  updateConfig(dir, { port });
 }

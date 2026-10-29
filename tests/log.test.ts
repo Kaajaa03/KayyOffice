@@ -23,6 +23,14 @@ describe('EventLog', () => {
     log.append(ev({ ts: T0 + 11_000, event: 'PostToolUse' }));
     expect(log.day(DATE).perAgent.coder.activeMs).toBe(5000);
   });
+  it('collects the last 5 distinct edited files per agent (code tools only) and lists them in the dev-log', () => {
+    const log = new EventLog(null);
+    ['a', 'b', 'c', 'd', 'e', 'f', 'a'].forEach((f, i) => log.append(ev({ ts: T0 + i, tool: 'Edit', file: `C:\\p\\${f}.ts` })));
+    log.append(ev({ ts: T0 + 20, tool: 'Read', file: 'C:\\p\\readonly.ts' }));
+    const files = log.day(DATE).perAgent.coder.files;
+    expect(files).toEqual(['c.ts', 'd.ts', 'e.ts', 'f.ts', 'a.ts']);
+    expect(renderDevLog(log.day(DATE))).toContain('Dateien: c.ts, d.ts, e.ts, f.ts, a.ts');
+  });
   it('records projects once per agent', () => {
     const log = new EventLog(null);
     log.append(ev({}));

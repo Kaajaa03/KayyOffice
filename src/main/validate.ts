@@ -21,6 +21,12 @@ export function parseEvent(raw: unknown): AgentEvent | null {
   const message = str(r.message, 500);
   const agentType = str(r.agentType, 100);
   if (agentType) out.agentType = agentType;
+  if (r.source === 'mod' || r.source === 'hook') out.source = r.source;
+  const model = str(r.model, 100);
+  if (model) out.model = model;
+  const file = str(r.file, 200);
+  if (file) out.file = file;
+  if (typeof r.costUsd === 'number' && Number.isFinite(r.costUsd) && r.costUsd >= 0) out.costUsd = r.costUsd;
   if (parentId) out.parentId = parentId;
   if (tool) out.tool = tool;
   if (message !== undefined) out.message = message;

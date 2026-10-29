@@ -43,6 +43,11 @@ describe('hook.js', () => {
     expect(got).toHaveLength(1);
     expect(got[0]).toMatchObject({ event: 'PreToolUse', sessionId: 's1', agentId: 's1', tool: 'Bash', cwd: 'C:\\p' });
   });
+  it('forwards the edited file path from tool_input', async () => {
+    const { dir, got } = await setup(48135);
+    await runHook(dir, JSON.stringify({ hook_event_name: 'PreToolUse', session_id: 's1', tool_name: 'Edit', cwd: 'C:\\p', tool_input: { file_path: 'C:\\p\\src\\a.ts' } }));
+    expect(got[0].file).toBe('C:\\p\\src\\a.ts');
+  });
   it('maps agent_id to a child agent', async () => {
     const { dir, got } = await setup(48130);
     await runHook(dir, JSON.stringify({ hook_event_name: 'PreToolUse', session_id: 's1', agent_id: 'sub9', tool_name: 'Read', cwd: 'C:\\p' }));

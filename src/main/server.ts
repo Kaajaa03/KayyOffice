@@ -49,7 +49,8 @@ function parsePermission(raw: unknown): PermissionPayload | null {
   const agentId = s(r.agentId, 200);
   const tool = s(r.tool, 100);
   if (!sessionId || !agentId || !tool) return null;
-  return { sessionId, agentId, tool, summary: typeof r.summary === 'string' ? r.summary.slice(0, 300) : '' };
+  const source = r.source === 'mod' || r.source === 'hook' ? r.source : undefined;
+  return { sessionId, agentId, tool, summary: typeof r.summary === 'string' ? r.summary.slice(0, 300) : '', source };
 }
 
 export function startServer(opts: ServerOptions): Promise<RunningServer> {
