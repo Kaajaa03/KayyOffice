@@ -5,6 +5,8 @@ import { existsSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { loadConfig, saveConfigPort, updateConfig } from './config';
+import { DEFAULT_APPROVAL_MODE, parseApprovalMode, shouldShowCard } from './approvals';
+import type { ApprovalMode } from './approvals';
 import { PermissionQueue } from './control';
 import { demoState } from './demo';
 import { EventLog, localDate, writeDevLog, writeWeekLog } from './log';
@@ -61,6 +63,12 @@ let rolesPath = '';
 let eventLog = new EventLog(null);
 let devLogDir = '';
 let configDirPath = '';
+let approvalMode: ApprovalMode = DEFAULT_APPROVAL_MODE;
+
+function setApprovalMode(mode: ApprovalMode): void {
+  approvalMode = mode;
+  updateConfig(configDirPath, { approvals: mode });
+}
 
 async function openRecap(week: boolean): Promise<void> {
   const today = localDate(Date.now());
@@ -150,6 +158,16 @@ function buildTray(): void {
     { label: `Anzeigen / Verstecken (${HOTKEY.replace('Control', 'Ctrl')})`, click: () => toggleOverlay(win) },
     { label: 'Demo zeigen (15 s)', click: () => startDemo(DEMO_MS) },
     { label: 'Willkommen / Hilfe', click: () => openWelcome() },
+    {
+      label: 'Freigabe-Karten im Overlay',
+      submenu: ([
+        ['risky', 'Nur bei riskanten Befehlen (Standard)'],
+        ['all', 'Bei jeder Rückfrage'],
+        ['off', 'Nie (Claude fragt normal)'],
+      ] as Array<[ApprovalMode, string]>).map(([mode, label]) => ({
+        label, type: 'radio' as const, checked: approvalMode === mode, click: () => setApprovalMode(mode),
+      })),
+    },
     { type: 'separator' },
     {
       label: 'Hooks installieren',
@@ -208,6 +226,7 @@ async function main(): Promise<void> {
   const configDir = join(app.getPath('appData'), 'KayyOffice');
   const config = loadConfig(configDir);
   configDirPath = configDir;
+  approvalMode = parseApprovalMode(config.approvals);
   // keep an already staged hook in sync with this app version (protocol changes must not silently break it)
   try { if (existsSync(join(configDir, 'hook.js'))) stageHook(hookPath(), configDir); } catch { /* best effort */ }
   eventLog = new EventLog(join(configDir, 'logs'));
@@ -262,6 +281,8 @@ async function main(): Promise<void> {
       },
       onPermission: (p, signal) => {
         if (!gate.acceptPermission(p)) return Promise.resolve('ask' as const);
+        // everyday requests stay with Claude's own dialog; the overlay only speaks up for real risks
+        if (!shouldShowCard(approvalMode, p.tool, p.summary)) return Promise.resolve('ask' as const);
         const known = state.agents[p.agentId];
         state = reduce(state, {
           ts: Date.now(), sessionId: p.sessionId, agentId: p.agentId, event: 'Notification',

@@ -7,6 +7,8 @@ export interface Config {
   port: number;
   devLogDir?: string;
   welcomeShown?: boolean;
+  /** 'all' | 'risky' (default) | 'off': which permission requests get an overlay card. */
+  approvals?: string;
 }
 
 export const DEFAULT_PORT = 47821;
