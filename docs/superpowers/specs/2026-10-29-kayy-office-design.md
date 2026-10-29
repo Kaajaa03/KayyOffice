@@ -5,6 +5,9 @@ Datum: 2026-10-29 · Status: Entwurf zur Review
 ## Ziel
 Windows-Pendant zu Lumio (Mac): ein visuelles Pixel-Büro, in dem jeder Claude-Code-Agent (inkl. Subagents) einen Schreibtisch hat. Zeigt live Status, erlaubt Steuerung (Permissions) und bildet Rollen/Projekte für Multi-Agent-Arbeit ab.
 
+## Form
+Lokales Windows-Desktop-Programm (Electron, später Installer/.exe). **Keine Webseite, kein Hosting.** Der localhost-Port ist nur der interne Kanal Hook → App (127.0.0.1, von außen nicht erreichbar). GitHub nur für den Quellcode.
+
 ## Nicht-Ziele
 - Kein LLM-Aufruf, kein Polling der Agents, keine Telemetrie. Netzwerk: nur localhost.
 - Kein Cloud-Dienst, keine Accounts.
