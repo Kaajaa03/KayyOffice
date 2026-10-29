@@ -1,0 +1,12 @@
+{
+  "name": "kayy",
+  "owner": { "name": "Kaja" },
+  "metadata": { "description": "Kayy Office: pixel-office overlay companion mod for Claude Code" },
+  "plugins": [
+    {
+      "name": "kayy-office",
+      "source": "./mod/kayy-office",
+      "description": "Feeds the Kayy Office overlay, approves tool calls from it, routes subagents to haiku/sonnet/opus and shows agents, cost and approvals in a pane."
+    }
+  ]
+}
