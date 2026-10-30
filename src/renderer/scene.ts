@@ -1,22 +1,19 @@
 import { projectOf } from '../shared/project';
 import type { Agent } from '../shared/types';
 
-export const CELL_W = 108;
-export const CELL_H = 150;
+import { roomLayout } from './room';
 
+/** Seat index; the room geometry (room.ts) maps it to a position. */
 export interface Desk {
   agentId: string;
   slot: number;
-  x: number;
-  y: number;
-  row: number;
 }
 
 /** Stateful so an agent keeps its desk while others come and go. */
 export class DeskLayout {
   private slots = new Map<string, number>();
 
-  layout(agents: Agent[], width: number): Desk[] {
+  layout(agents: Agent[]): Desk[] {
     const present = new Set(agents.map((a) => a.id));
     for (const id of [...this.slots.keys()]) if (!present.has(id)) this.slots.delete(id);
     const used = new Set(this.slots.values());
@@ -47,12 +44,7 @@ export class DeskLayout {
       this.slots.set(a.id, slot);
       used.add(slot);
     }
-    const cols = Math.max(1, Math.floor(width / CELL_W));
-    return agents.map((a) => {
-      const slot = this.slots.get(a.id)!;
-      const row = Math.floor(slot / cols);
-      return { agentId: a.id, slot, row, x: (slot % cols) * CELL_W, y: row * CELL_H };
-    });
+    return agents.map((a) => ({ agentId: a.id, slot: this.slots.get(a.id)! }));
   }
 }
 
@@ -69,6 +61,7 @@ export function officeStats(agents: Agent[]): OfficeStats {
   return { total: agents.length, working, waiting, costUsd: hasCost ? +cost.toFixed(4) : null };
 }
 
+/** Desk rows of the room needed for these desks. */
 export function rowCount(desks: Desk[]): number {
-  return desks.length ? Math.max(...desks.map((d) => d.row)) + 1 : 0;
+  return desks.length ? roomLayout(Math.max(...desks.map((d) => d.slot)) + 1).rows : 0;
 }

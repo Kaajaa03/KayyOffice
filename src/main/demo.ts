@@ -15,6 +15,9 @@ export function demoState(now = Date.now()): AppState {
     mk('deploy', 'C:\\dev\\infra', 'done', undefined, 'claude-sonnet-5-5', { costUsd: 0.2 }),
     mk('sub1', 'C:\\dev\\KayyOffice', 'error', 'terminal', 'claude-haiku-5-5', { parentId: 'coder' }),
     mk('idle1', 'C:\\dev\\old', 'idle', undefined, 'claude-sonnet-5-5'),
+    // done agents at different points of their coffee break: walking, at the machine, in the lounge
+    mk('writer', 'C:\\dev\\site', 'done', undefined, 'claude-sonnet-5-5', { lastEventTs: now - 8000, costUsd: 0.31 }),
+    mk('docs', 'C:\\dev\\infra', 'done', undefined, 'claude-haiku-5-5', { lastEventTs: now - 120_000, costUsd: 0.04 }),
   ];
   return { agents: Object.fromEntries(list.map((a) => [a.id, a])) };
 }

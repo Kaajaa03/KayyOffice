@@ -1,15 +1,23 @@
 import type { Agent, AppState, PermissionRequestInfo } from '../shared/types';
 import { CARD_H, CARD_W, armDelay, drawPermissionCard } from './card';
 import type { Hit } from './card';
-import { CELL_H, CELL_W, DeskLayout, officeStats, rowCount } from './scene';
-import type { Desk } from './scene';
+import { DeskLayout, officeStats } from './scene';
 import { ClickGuard } from './clickguard';
 import { FrameGate, animationMode } from './loop';
 import { formatCost } from '../shared/model';
 import { projectOf } from '../shared/project';
-import { drawBackground, drawDesk, drawFooter, drawHint, drawPlate } from './sprites';
-
-const FOOTER_H = 22;
+import { MAX_H, P, roomLayout } from './room';
+import type { Pt, Room, Seat } from './room';
+import { dayPhase } from './sun';
+import type { DayPhase } from './sun';
+import { doneTimeline, pointAlong, walkPath } from './walk';
+import {
+  CLOCK_Y, DISPLAY_Y, FOOTER_FONT, FOOTER_H, HEADER_FONT, HEADER_H, PILL_H, SMALL_FONT,
+  blit, bottomChairY, chairBackSprite, drawClockHands, drawHint, drawPill, drawScreen, drawText,
+  glowSprite, lookFor, monitorBackSprite, monitorBackY, monitorFrontY, paintFrame, paintRoom,
+  personSprite, r, wallItems,
+} from './sprites';
+import type { Pose } from './sprites';
 
 interface KayyApi {
   onHint(cb: (text: string | null) => void): void;
@@ -36,6 +44,27 @@ let interactive = false;
 let visible = true;
 let looping = false;
 
+// Debug: `--hour=<0-23>` (passed as ?hour= by the main process) simulates the time of day.
+const hourParam = new URLSearchParams(location.search).get('hour');
+const hourOverride = hourParam !== null && /^\d{1,2}$/.test(hourParam) ? Number(hourParam) % 24 : null;
+const clockDate = (): Date => {
+  const d = new Date();
+  if (hourOverride !== null) d.setHours(hourOverride);
+  return d;
+};
+
+// Day phase is re-checked at most once a minute, and only when something redraws anyway.
+let phase: DayPhase = dayPhase(clockDate());
+let phaseAt = performance.now();
+function currentPhase(now: number): DayPhase {
+  if (now - phaseAt >= 60_000) { phase = dayPhase(clockDate()); phaseAt = now; }
+  return phase;
+}
+
+// Static room layer: repainted only when size, day phase or seating changes.
+const staticCanvas = document.createElement('canvas');
+let staticKey = '';
+
 function resize(): void {
   const dpr = window.devicePixelRatio || 1;
   canvas.width = Math.round(window.innerWidth * dpr);
@@ -51,46 +80,201 @@ function footerText(agents: Agent[]): string {
   return parts.join('  ·  ');
 }
 
-/** Consecutive desks of one project on one row form a "room". */
-function projectRuns(desks: Desk[]): Array<{ x: number; y: number; w: number; name: string }> {
-  const runs: Array<{ x: number; y: number; w: number; name: string; row: number; last: number }> = [];
-  for (const d of desks) {
-    const name = projectOf(state.agents[d.agentId]);
-    const cur = runs[runs.length - 1];
-    if (cur && cur.name === name && cur.row === d.row && cur.last + 1 === d.slot) { cur.w += CELL_W; cur.last = d.slot; }
-    else runs.push({ x: d.x, y: d.y, w: CELL_W, name, row: d.row, last: d.slot });
+function ensureStatic(room: Room, ph: DayPhase, occupied: Set<number>, labels: string[], dpr: number): void {
+  const key = `${room.w}x${room.h}|${dpr}|${ph}|${[...occupied].sort((a, b) => a - b).join(',')}|${labels.join('/')}`;
+  if (key === staticKey) return;
+  staticKey = key;
+  const w = room.w * P, h = HEADER_H + room.h * P + FOOTER_H;
+  staticCanvas.width = Math.ceil(w * dpr);
+  staticCanvas.height = Math.ceil(h * dpr);
+  const c = staticCanvas.getContext('2d')!;
+  c.imageSmoothingEnabled = false;
+  c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  paintFrame(c, w, room.h * P);
+  c.translate(0, HEADER_H);
+  paintRoom(c, room, ph, occupied, labels);
+}
+
+interface Drawable { z: number; draw: () => void; pill?: { x: number; top: number; agent: Agent } }
+
+const walkPose = (dir: string, frame: 0 | 1): Pose =>
+  dir === 'up' ? (frame ? 'back1' : 'back0') : dir === 'right' ? (frame ? 'sideR1' : 'sideR0') : dir === 'left' ? (frame ? 'sideL1' : 'sideL0') : (frame ? 'walk1' : 'walk0');
+
+/** Person, chair, monitor and effects of every seated agent, to be drawn in z order. */
+function agentDrawables(c: CanvasRenderingContext2D, room: Room, seated: Array<{ a: Agent; s: Seat }>, t: number, ph: DayPhase, dpr: number): Drawable[] {
+  const out: Drawable[] = [];
+  const wall = Date.now();
+  const night = ph === 'night' || ph === 'dusk';
+  const timeline = new Map(seated.filter(({ a }) => a.status === 'done').map(({ a }) => [a.id, doneTimeline(wall - a.lastEventTs)]));
+  const coffeeIdx = new Map<string, number>(), loungeIdx = new Map<string, number>();
+  for (const { a } of seated) {
+    const tl = timeline.get(a.id);
+    if (!tl) continue;
+    if (tl.phase === 'toCoffee' || tl.phase === 'coffee') coffeeIdx.set(a.id, coffeeIdx.size);
+    else loungeIdx.set(a.id, loungeIdx.size);
   }
-  return runs;
+
+  for (const { a, s } of seated) {
+    const look = lookFor(a);
+    const up = s.facing === 'up';
+    const screenOn = a.status === 'working' || a.status === 'error' || a.status === 'waiting';
+    if (up) {
+      const my = monitorFrontY(s);
+      out.push({ z: s.y - 1, draw: () => {
+        if (night && screenOn) { c.globalAlpha = 0.55; blit(c, glowSprite('rgba(140,190,255,0.9)', 14, dpr), s.x - 14, my - 9, dpr); c.globalAlpha = 1; }
+        drawScreen(c, a, s.x, my, t);
+      } });
+      out.push({ z: s.y + 15, draw: () => blit(c, chairBackSprite(dpr, ph), s.x - 6, bottomChairY(s), dpr) });
+    } else {
+      const my = monitorBackY(s);
+      out.push({ z: s.y + 10, draw: () => {
+        blit(c, monitorBackSprite(dpr, ph), s.x - 7, my, dpr);
+        const led = a.status === 'working' ? '#51cf66' : a.status === 'error' ? (Math.floor(t / 300) % 2 ? '#ff6b6b' : '#7f1d1d') : a.status === 'waiting' ? '#ffa94d' : '#6c7380';
+        r(c, s.x + 5, my + 7, 1, 1, led);
+      } });
+    }
+
+    const stand: Pt = up ? { x: s.x, y: s.y - 1 } : { x: s.x, y: s.y - 5 };
+    if (a.status === 'done') {
+      const tl = timeline.get(a.id)!;
+      const ci = coffeeIdx.get(a.id) ?? 0;
+      const coffee = { x: room.coffee.x + ci * 9, y: room.coffee.y + (ci % 2) * 2 };
+      const spot = room.loungeSpots[(loungeIdx.get(a.id) ?? 0) % room.loungeSpots.length];
+      let pos: Pt, pose: Pose, steam = false;
+      if (tl.phase === 'toCoffee') {
+        const w = pointAlong(walkPath(stand, coffee, s.aisleY), tl.t);
+        pos = w; pose = walkPose(w.dir, w.frame);
+      } else if (tl.phase === 'coffee') {
+        pos = coffee; pose = 'cup'; steam = true;
+      } else if (tl.phase === 'toLounge') {
+        const w = pointAlong(walkPath(coffee, spot, room.wallAisleY), tl.t);
+        pos = w; pose = walkPose(w.dir, w.frame);
+      } else {
+        pos = spot; pose = 'lounge'; steam = true;
+      }
+      const p = pos;
+      out.push({
+        z: p.y + 16,
+        draw: () => {
+          blit(c, personSprite(look, pose, dpr, ph), p.x - 4, p.y, dpr);
+          if (steam) {
+            const k = Math.floor(t / 300) % 3;
+            const cx = pose === 'cup' ? p.x + 3 : p.x;
+            c.globalAlpha = 0.75;
+            r(c, cx, p.y + 6 - k, 1, 1, '#ffffff');
+            r(c, cx + 1, p.y + 5 - ((k + 1) % 3), 1, 1, '#ffffff');
+            c.globalAlpha = 1;
+          }
+        },
+        pill: { x: p.x, top: p.y * P - PILL_H - 2, agent: a },
+      });
+      continue;
+    }
+
+    if (a.status === 'waiting') {
+      const bob = Math.floor(t / 350) % 2;
+      const p = { x: s.x + (up ? 11 : -11), y: stand.y - bob };
+      out.push({
+        z: stand.y + 16,
+        draw: () => {
+          c.globalAlpha = 0.45 + 0.25 * Math.sin(t / 250);
+          blit(c, glowSprite('rgba(255,169,77,0.85)', 16, dpr), p.x - 16, p.y - 6, dpr);
+          c.globalAlpha = 1;
+          blit(c, personSprite(look, 'stand', dpr, ph), p.x - 4, p.y, dpr);
+          r(c, p.x + 5, p.y - 6, 7, 7, '#ffffff');
+          r(c, p.x + 5, p.y + 1, 2, 1, '#ffffff');
+          r(c, p.x + 8, p.y - 5, 1, 3, '#e03131');
+          r(c, p.x + 8, p.y - 1, 1, 1, '#e03131');
+        },
+        pill: { x: p.x, top: (p.y - 7) * P - PILL_H, agent: a },
+      });
+      continue;
+    }
+
+    const typing = a.status === 'working' ? Math.floor(t / 130) % 2 : 0;
+    const pose: Pose = up ? (typing ? 'seatBack1' : 'seatBack0') : 'seatFront';
+    out.push({
+      z: up ? s.y + 14 : s.y + 9,
+      draw: () => {
+        blit(c, personSprite(look, pose, dpr, ph), s.x - 4, s.y, dpr);
+        if (!up && night && screenOn) { c.globalAlpha = 0.5; blit(c, glowSprite('rgba(150,200,255,0.9)', 7, dpr), s.x - 7, s.y - 2, dpr); c.globalAlpha = 1; }
+        if (a.status === 'error') {
+          const blink = Math.floor(t / 300) % 2;
+          r(c, s.x + 5, s.y + 1 + blink, 1, 2, '#74c0fc');
+          r(c, s.x - 1, s.y - 5, 2, 3, blink ? '#e03131' : '#ff8787');
+          r(c, s.x - 1, s.y - 1, 2, 1, blink ? '#e03131' : '#ff8787');
+        }
+      },
+      pill: up
+        ? { x: s.x, top: (bottomChairY(s) + 8) * P + 1, agent: a }
+        : { x: s.x, top: s.y * P - PILL_H - 2, agent: a },
+    });
+  }
+  return out;
 }
 
 function draw(now: number): void {
   const dpr = window.devicePixelRatio || 1;
   const w = window.innerWidth;
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.clearRect(0, 0, w, window.innerHeight);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.imageSmoothingEnabled = false;
   hits = [];
   const agents = Object.values(state.agents);
-  const cardRoom = permissions.length ? CARD_H + 16 : 0;
   let panelH = 0;
   if (agents.length) {
-    const desks = layout.layout(agents, w);
-    const rows = Math.max(1, Math.min(rowCount(desks), Math.floor((window.innerHeight - cardRoom - FOOTER_H) / CELL_H)));
-    const used = Math.min(w, Math.max(...desks.map((d) => d.x)) + CELL_W);
-    ctx.save();
-    ctx.translate(Math.round((w - used) / 2), 0);
-    drawBackground(ctx, used, rows, new Date().getHours(), FOOTER_H);
-    const visibleDesks = desks.filter((d) => d.row < rows).sort((a, b) => a.slot - b.slot);
-    for (const run of projectRuns(visibleDesks)) drawPlate(ctx, run.x, run.y, run.w, run.name);
-    for (const d of visibleDesks) { const a = state.agents[d.agentId]; drawDesk(ctx, a, d, now, a.color); }
-    drawFooter(ctx, used, rows * CELL_H, footerText(agents));
-    ctx.restore();
-    panelH = rows * CELL_H + FOOTER_H;
+    const desks = layout.layout(agents);
+    const maxSlot = Math.max(...desks.map((d) => d.slot));
+    const room = roomLayout(maxSlot + 1, Math.floor((w - 8) / P), Math.min(MAX_H, Math.floor((window.innerHeight - HEADER_H - FOOTER_H) / P)));
+    const ph = currentPhase(now);
+    const seated: Array<{ a: Agent; s: Seat }> = [];
+    const clusterProjects: string[][] = room.clusters.map(() => []);
+    let overflow = 0;
+    for (const d of desks.sort((x, y) => x.slot - y.slot)) {
+      const s = room.seats[d.slot];
+      const a = state.agents[d.agentId];
+      if (!s) { overflow++; continue; }
+      seated.push({ a, s });
+      const name = projectOf(a);
+      if (!clusterProjects[s.cluster].includes(name)) clusterProjects[s.cluster].push(name);
+    }
+    ensureStatic(room, ph, new Set(seated.map((x) => x.s.slot)), clusterProjects.map((p) => p.join(' · ')), dpr);
+
+    const ox = Math.round((w - room.w * P) / 2);
+    const roomH = room.h * P;
+    ctx.drawImage(staticCanvas, Math.round(ox * dpr), 0);
+
+    // header + footer text
+    ctx.setTransform(dpr, 0, 0, dpr, ox * dpr, 0);
+    const st = officeStats(agents);
+    drawText(ctx, 'KAYY OFFICE', 42, 13, HEADER_FONT, '#9aa3b5', 'left', dpr);
+    const head = `Working: ${st.working}  ·  Waiting: ${st.waiting}${overflow ? `  ·  +${overflow} ohne Platz` : ''}`;
+    drawText(ctx, head, room.w * P - 10, 13, HEADER_FONT, st.waiting ? '#ffc078' : '#dee2e6', 'right', dpr);
+    drawText(ctx, footerText(agents), (room.w * P) / 2, HEADER_H + roomH + 14, FOOTER_FONT, 'rgba(229,231,235,0.8)', 'center', dpr);
+
+    // room content
+    ctx.setTransform(dpr, 0, 0, dpr, ox * dpr, HEADER_H * dpr);
+    const date = clockDate();
+    for (const it of wallItems(room)) {
+      if (it.kind === 'clock') drawClockHands(ctx, it.x + 6, CLOCK_Y, date);
+      if (it.kind === 'display') {
+        drawText(ctx, `Working ${st.working}`, (it.x + 3) * P, (DISPLAY_Y + 6) * P + 1, SMALL_FONT, '#69db7c', 'left', dpr);
+        drawText(ctx, `Waiting ${st.waiting}`, (it.x + 3) * P, (DISPLAY_Y + 12) * P, SMALL_FONT, st.waiting ? '#ffa94d' : '#74c0fc', 'left', dpr);
+      }
+    }
+    const items = agentDrawables(ctx, room, seated, now, ph, dpr).sort((a, b) => a.z - b.z);
+    for (const d of items) d.draw();
+    for (const d of items) if (d.pill) drawPill(ctx, d.pill.agent, d.pill.x * P, d.pill.top, dpr);
+    panelH = HEADER_H + roomH + FOOTER_H;
   } else if (hint) {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     drawHint(ctx, w, hint);
   }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   if (permissions.length) {
     const req = permissions[0];
-    hits = drawPermissionCard(ctx, Math.round((w - CARD_W) / 2), panelH + 10, req, permissions.length - 1, state.agents[req.agentId], hover);
+    const y = Math.min(panelH + 10, window.innerHeight - CARD_H - 4);
+    hits = drawPermissionCard(ctx, Math.round((w - CARD_W) / 2), y, req, permissions.length - 1, state.agents[req.agentId], hover);
   }
 }
 
@@ -104,7 +288,7 @@ function frame(now: number): void {
   if (gate.shouldDraw(now, mode === 'fast', visible)) safeDraw(now);
   if (mode === 'fast') requestAnimationFrame(frame);
   else if (mode === 'slow') setTimeout(() => frame(performance.now()), 100);
-  else looping = false;
+  else { looping = false; safeDraw(now); } // final still frame (e.g. walker arrived)
 }
 
 function wake(): void {
@@ -137,5 +321,5 @@ kayy.onPermissions((p) => {
 });
 kayy.onHint((t) => { hint = t; safeDraw(performance.now()); });
 kayy.onVisibility((v) => { visible = v; if (v) wake(); });
-window.addEventListener('resize', () => { resize(); draw(performance.now()); });
+window.addEventListener('resize', () => { resize(); staticKey = ''; draw(performance.now()); });
 resize();

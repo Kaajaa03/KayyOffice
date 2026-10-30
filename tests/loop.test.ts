@@ -9,6 +9,12 @@ describe('animationMode', () => {
   it('is slow (not 60 fps) for waiting/error/done only', () => {
     for (const s of ['waiting', 'error', 'done'] as const) expect(animationMode([a(s)])).toBe('slow');
   });
+  it('is fast while a done agent walks to the coffee machine, slow while drinking', () => {
+    const now = 100_000;
+    const done = (ts: number): Agent => ({ ...a('done'), lastEventTs: ts });
+    expect(animationMode([done(now - 500)], now)).toBe('fast');
+    expect(animationMode([done(now - 10_000)], now)).toBe('slow');
+  });
   it('is none when everything is idle or empty', () => {
     expect(animationMode([a('idle')])).toBe('none');
     expect(animationMode([])).toBe('none');

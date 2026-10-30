@@ -30,7 +30,9 @@ export function createOverlay(): BrowserWindow {
   });
   win.setAlwaysOnTop(true, 'screen-saver');
   win.setIgnoreMouseEvents(true, { forward: true });
-  win.loadFile(join(__dirname, 'index.html'));
+  // debug: --hour=<0-23> lets the renderer simulate the time of day (screenshots)
+  const hour = process.argv.find((a) => /^--hour=\d{1,2}$/.test(a))?.slice(7);
+  win.loadFile(join(__dirname, 'index.html'), hour ? { query: { hour } } : undefined);
   win.once('ready-to-show', () => win.showInactive());
   return win;
 }
