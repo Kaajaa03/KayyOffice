@@ -124,7 +124,7 @@ export async function askOverlay($: EngineInterface, office: Office, payload: Pe
     if (await isPaused($, office)) return undefined
     const config = await loadConfig($, office)
     const nonce = randomHex(16)
-    const body = JSON.stringify({ ...payload, source: 'mod' })
+    const body = JSON.stringify(payload)
     const res = await $.http.fetch(`http://127.0.0.1:${config.port}/permission`, {
       method: 'POST',
       headers: signRequest(config.token, nonce, '/permission', body),

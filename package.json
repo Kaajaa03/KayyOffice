@@ -1,6 +1,6 @@
 {
   "name": "kayy-office",
-  "version": "1.2.1",
+  "version": "1.3.0",
   "private": true,
   "description": "Pixel office overlay for Claude Code agents (Windows)",
   "main": "dist/main.js",

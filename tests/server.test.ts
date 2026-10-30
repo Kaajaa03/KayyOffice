@@ -21,7 +21,7 @@ async function start(port = 48100, onEvent: (e: AgentEvent) => void = () => {}) 
 }
 
 interface SignOpts { token?: string; nonce?: string; path?: string; signedBody?: string; extra?: Record<string, string> }
-/** Signed POST like the hook/mod do it (no token on the wire). */
+/** Signed POST like the mod does it (no token on the wire). */
 function signedPost(port: number, path: string, body: string, o: SignOpts = {}) {
   const nonce = o.nonce ?? randomBytes(16).toString('hex');
   const auth = requestAuth(o.token ?? TOKEN, nonce, o.path ?? path, o.signedBody ?? body);
@@ -123,14 +123,12 @@ describe('server /permission', () => {
     expect(res.status).toBe(401);
     expect(asked).toBe(false);
   });
-  it('passes the permission source (mod) through and drops unknown sources', async () => {
+  it('ignores unknown fields (an older mod still sends source) and passes the known ones on', async () => {
     const seen: unknown[] = [];
-    const s = await startServer({ token: TOKEN, port: 48128, onEvent: () => {}, onPermission: async (p) => { seen.push(p.source); return 'ask'; } });
+    const s = await startServer({ token: TOKEN, port: 48128, onEvent: () => {}, onPermission: async (p) => { seen.push(p); return 'ask'; } });
     closers.push(s.close);
-    const send = (source: string) => signedPost(s.port, '/permission', JSON.stringify({ sessionId: 's', agentId: 's', tool: 'Bash', summary: '', source }));
-    await send('mod');
-    await send('weird');
-    expect(seen).toEqual(['mod', undefined]);
+    await signedPost(s.port, '/permission', JSON.stringify({ sessionId: 's', agentId: 'a', tool: 'Bash', summary: 'ls', source: 'mod' }));
+    expect(seen).toEqual([{ sessionId: 's', agentId: 'a', tool: 'Bash', summary: 'ls' }]);
   });
 });
 

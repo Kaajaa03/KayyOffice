@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { SettingsModel } from '../src/main/settings';
+import { SettingsModel, modConnected } from '../src/main/settings';
 import type { SettingsDeps } from '../src/main/settings';
 
 function make(over: Partial<SettingsDeps> = {}) {
@@ -20,7 +20,6 @@ function make(over: Partial<SettingsDeps> = {}) {
     setAwake: (b) => log.push(`awake:${b}`),
     setApprovals: (m) => log.push(`approvals:${m}`),
     persist: (patch) => persisted.push(patch),
-    hooksInstalled: () => true,
     modActive: () => false,
     port: () => 47821,
     changed: () => log.push('changed'),
@@ -34,9 +33,19 @@ describe('SettingsModel.snapshot', () => {
     const { m } = make();
     expect(m.snapshot()).toEqual({
       language: 'de', scale: 1, opacity: 1, placement: 'top-center', approvals: 'risky', awake: true,
-      autostart: false, autostartAvailable: true, hooks: true, mod: false, port: 47821,
+      autostart: false, autostartAvailable: true, mod: false, port: 47821,
       version: '1.2.0', hotkey: 'Strg+Alt+O',
     });
+  });
+});
+
+describe('modConnected', () => {
+  it('is true only when an event arrived within the last 5 minutes', () => {
+    const now = 10_000_000;
+    expect(modConnected(0, now)).toBe(false); // never
+    expect(modConnected(now - 1000, now)).toBe(true);
+    expect(modConnected(now - 5 * 60_000, now)).toBe(true);
+    expect(modConnected(now - 5 * 60_000 - 1, now)).toBe(false);
   });
 });
 

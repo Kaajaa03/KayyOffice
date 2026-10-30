@@ -31,8 +31,6 @@ export interface AgentEvent {
   tool?: string;
   cwd: string;
   message?: string;
-  /** Who produced the event: the Claude mod (preferred) or a classic hook. */
-  source?: 'mod' | 'hook';
   /** Model alias/id of the agent (e.g. "haiku", "claude-opus-5-5"). */
   model?: string;
   /** File the tool works on (file_path), shortened. */
@@ -108,7 +106,6 @@ export interface PermissionPayload {
   agentId: string;
   tool: string;
   summary: string;
-  source?: 'mod' | 'hook';
 }
 
 export interface PermissionRequestInfo {

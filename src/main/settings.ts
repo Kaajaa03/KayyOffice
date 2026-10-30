@@ -19,7 +19,6 @@ export interface SettingsSnapshot {
   awake: boolean;
   autostart: boolean;
   autostartAvailable: boolean;
-  hooks: boolean;
   mod: boolean;
   port: number;
   version: string;
@@ -29,7 +28,7 @@ export interface SettingsSnapshot {
 type SetError = 'unknown' | 'invalid' | 'unavailable' | 'failed';
 export type SetResult = { ok: true } | { ok: false; error: SetError };
 
-/** Result of a settings-window button (install hooks, open a file, ...): a plain-language text to show inline. */
+/** Result of a settings-window button (open a file, demo, ...): a plain-language text to show inline. */
 export interface ActionResult { ok: boolean; text: string }
 
 export interface SettingsDeps {
@@ -48,12 +47,16 @@ export interface SettingsDeps {
   setAwake(on: boolean): void;
   setApprovals(mode: ApprovalMode): void;
   persist(patch: Record<string, unknown>): void;
-  hooksInstalled(): boolean;
   modActive(): boolean;
   port(): number;
   /** Something changed: push a fresh snapshot to the settings window and refresh the tray. */
   changed(): void;
 }
+
+const MOD_FRESH_MS = 5 * 60_000;
+
+/** The Claude mod counts as connected while it reported an event within the last 5 minutes. */
+export const modConnected = (lastEventAt: number, now: number): boolean => lastEventAt > 0 && now - lastEventAt <= MOD_FRESH_MS;
 
 const KEYS = ['language', 'scale', 'opacity', 'placement', 'approvals', 'awake', 'autostart'] as const;
 type Key = (typeof KEYS)[number];
@@ -70,7 +73,7 @@ export class SettingsModel {
     return {
       ...this.v,
       autostart: this.deps.autostartAvailable && this.deps.getAutostart(), autostartAvailable: this.deps.autostartAvailable,
-      hooks: this.deps.hooksInstalled(), mod: this.deps.modActive(), port: this.deps.port(),
+      mod: this.deps.modActive(), port: this.deps.port(),
       version: this.deps.version, hotkey: this.deps.hotkey,
     };
   }

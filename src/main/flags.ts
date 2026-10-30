@@ -9,6 +9,7 @@ export interface Flags {
   perf?: string; // --perf=<json>: sample CPU/RAM, write the result, then quit
   perfSeconds: number;
   configDir?: string; // --config-dir=<path>: keep manual runs away from the real settings
+  claudeDir?: string; // --claude-dir=<path>: replaces ~/.claude (Claude's settings.json), for manual runs
   lang?: Lang;
   scale?: number;
   hour?: number; // 0-23: simulated time of day
@@ -41,6 +42,7 @@ export function parseFlags(argv: readonly string[]): Flags {
     perf: text('perf'),
     perfSeconds: perfSeconds !== undefined && perfSeconds > 0 ? perfSeconds : DEFAULT_PERF_SECONDS,
     configDir: text('config-dir'),
+    claudeDir: text('claude-dir'),
     lang: parseLanguage(raw.get('lang')),
     scale: num('scale'),
     hour: hour !== undefined && hour <= 23 ? hour : undefined,

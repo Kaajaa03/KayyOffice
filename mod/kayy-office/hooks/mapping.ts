@@ -26,7 +26,6 @@ export type AgentEvent = {
   cwd: string
   message?: string
   agentType?: string
-  source: 'mod'
   model?: string
   costUsd?: number
   file?: string
@@ -105,7 +104,6 @@ export const makeEvent = (
     agentId: (agentId ?? where.sessionId).slice(0, 200),
     event,
     cwd: where.cwd.slice(0, 500),
-    source: 'mod',
   }
   const parentId = cut(extra.parentId, 200)
   const tool = cut(extra.tool, 100)

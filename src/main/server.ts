@@ -8,7 +8,7 @@ export interface ServerOptions {
   token: string;
   port: number;
   onEvent: (e: AgentEvent) => void;
-  /** Resolves with the user's decision; aborted when the hook disconnects. */
+  /** Resolves with the user's decision; aborted when the client disconnects. */
   onPermission?: (p: PermissionPayload, signal: AbortSignal) => Promise<PermissionDecision>;
 }
 
@@ -47,8 +47,7 @@ function parsePermission(raw: unknown): PermissionPayload | null {
   const agentId = str(r.agentId, 200);
   const tool = str(r.tool, 100);
   if (!sessionId || !agentId || !tool) return null;
-  const source = r.source === 'mod' || r.source === 'hook' ? r.source : undefined;
-  return { sessionId, agentId, tool, summary: str(r.summary, 300) ?? '', source };
+  return { sessionId, agentId, tool, summary: str(r.summary, 300) ?? '' };
 }
 
 export function startServer(opts: ServerOptions): Promise<RunningServer> {

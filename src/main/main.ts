@@ -1,5 +1,6 @@
 // Composition root: builds the modules and wires them together. No logic of its own.
 import { app, powerSaveBlocker } from 'electron';
+import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { createActions } from './actions';
 import { parseApprovalMode } from './approvals';
@@ -19,8 +20,8 @@ import { parsePlacement, parsePosition } from './position';
 import { AwakeManager } from './power';
 import { applyRoles, openRoles } from './roles';
 import { parseScale } from './scale';
-import { SettingsModel } from './settings';
-import { SourceGate } from './source';
+import { modConnected, SettingsModel } from './settings';
+import { removeLegacyHooks } from './legacy';
 import { createTray, HOTKEY_LABEL } from './tray';
 import { createOverlay, placeOverlay, resizeOverlay, SettingsWindow, showOverlay, toggleOverlay } from './window';
 import { defaultLanguage, parseLanguage, t } from '../shared/i18n';
@@ -50,6 +51,7 @@ async function main(): Promise<void> {
   let lang: Lang = flags.lang ?? parseLanguage(config.language) ?? defaultLanguage(app.getLocale());
   let approvalMode: ApprovalMode = parseApprovalMode(config.approvals);
   let port = config.port;
+  let lastEventAt = 0; // last event received from the Claude mod
 
   const logDir = join(configDir, 'logs');
   const eventLog = new EventLog(logDir);
@@ -57,7 +59,6 @@ async function main(): Promise<void> {
   const rolesPath = join(configDir, 'roles.json');
   const awake = new AwakeManager({ start: (type) => powerSaveBlocker.start(type), stop: (id) => powerSaveBlocker.stop(id) }, { enabled: config.awake !== false });
   const roles = openRoles(rolesPath, () => office.publish());
-  const gate = new SourceGate();
   const settings = new SettingsWindow();
 
   const { win, scale } = createOverlay(parsePosition(config.position), parseScale(flags.scale ?? config.scale), parseOpacity(config.opacity), flags);
@@ -76,10 +77,10 @@ async function main(): Promise<void> {
 
   const pushSettings = () => settings.current?.webContents.send('settings:changed', model.snapshot());
   const actions = createActions({
-    lang: () => lang, configDir, devLogDir: config.devLogDir || join(configDir, 'devlog'), rolesPath, eventLog, settings,
-    adviceAsked: config.hooksAdvice === 'asked', startDemo: () => startDemo(DEMO_MS), changed: pushSettings,
+    lang: () => lang, devLogDir: config.devLogDir || join(configDir, 'devlog'), rolesPath, eventLog, settings,
+    startDemo: () => startDemo(DEMO_MS),
   });
-  actions.refreshStagedHook();
+  removeLegacyHooks(flags.claudeDir ?? join(homedir(), '.claude'), configDir);
 
   const model: SettingsModel = new SettingsModel({
     initial: { language: lang, scale: zoom, opacity: parseOpacity(config.opacity), placement: parsePlacement(config.placement), approvals: approvalMode, awake: config.awake !== false },
@@ -96,8 +97,7 @@ async function main(): Promise<void> {
     setAwake: (on) => awake.setEnabled(on),
     setApprovals: (mode) => { approvalMode = mode; },
     persist: (patch) => updateConfig(configDir, patch),
-    hooksInstalled: actions.hooksInstalled,
-    modActive: () => gate.modActive(),
+    modActive: () => modConnected(lastEventAt, Date.now()),
     port: () => port,
     changed: pushSettings,
   });
@@ -127,13 +127,19 @@ async function main(): Promise<void> {
     if (!flags.noCard) void queue.add({ id: 'demo', agentId: flags.demoCount ? `agent${Math.min(3, flags.demoCount)}` : 'reviewer', tool: 'Bash', summary: 'git push --force origin main' });
   } else {
     const server = await startIngest({
-      token: config.token, port, gate, eventLog, office, queue, showOverlay: () => showOverlay(win),
+      token: config.token, port, eventLog, office, queue, showOverlay: () => showOverlay(win),
       approvalMode: () => approvalMode,
-      onModEvent: () => void actions.adviseAboutHooks(),
+      onEvent: () => { lastEventAt = Date.now(); },
     });
     if (server.port !== port) updateConfig(configDir, { port: server.port });
     port = server.port;
     app.on('before-quit', () => { void server.close(); });
+  }
+
+  // "just works in every chat": the installed app starts with Windows, switched on once; the settings switch decides afterwards
+  if (app.isPackaged && !config.autostartInit && !flags.perf && !flags.demo && !flags.screenshot) {
+    app.setLoginItemSettings({ openAtLogin: true });
+    updateConfig(configDir, { autostartInit: true });
   }
 
   if (flags.perf) runPerf(flags.perfSeconds, flags.perf);

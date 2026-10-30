@@ -12,8 +12,8 @@ Ein einzelner Windows-Benutzer, der seine eigenen Projekte bearbeitet. Andere Pr
 | Übergroße oder kaputte Eingaben | Body-Limit 64 KB, strikte Validierung, Kürzung aller Felder, Steuerzeichen entfernt |
 | Versehentliche Freigabe per Doppelklick | Klick erst nach 600 ms (1,5 s bei riskanten Befehlen), mousedown und mouseup auf demselben Knopf, nächste Karte wird neu „scharf“ |
 | Geheimnisse in Dateien | Nachrichten- und Aufgabentexte werden nie gespeichert; Fehler werden nur als „`<Tool>` fehlgeschlagen“ gemeldet; `app.log` enthält keine Befehle oder Tokens (lange Hex-Strings werden geschwärzt) |
-| Beschädigte Einstellungen | `settings.json`/`config.json` werden atomar geschrieben, vorher Backup (die 5 neuesten bleiben), ungültiges JSON wird nie überschrieben |
-| Die App ist aus oder hängt | Hook und Mod fallen still auf Claudes normalen Dialog zurück, nie auf „allow“ |
+| Beschädigte Einstellungen | `config.json` wird atomar geschrieben; Claudes `settings.json` fasst die App nur an, um alte Hook-Einträge (`--kayy-office`) zu entfernen: vorher Backup (erstes plus neueste, insgesamt 5), atomar, ungültiges JSON wird nie überschrieben |
+| Die App ist aus oder hängt | Der Mod fällt still auf Claudes normalen Dialog zurück, nie auf „allow“ |
 
 ## Freigaben
 - Das Overlay und der Mod ändern nie ein core-`deny`. Der Mod gibt nur ein core-`ask` weiter, nur für echte Aufrufe (`tool_use_id`) mit Person als Entscheider.

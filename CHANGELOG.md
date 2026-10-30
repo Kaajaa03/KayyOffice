@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.0 – 2026-10-31
+Nur noch der Claude-Mod.
+- **Hook-Weg entfernt:** `hook.js`, Installieren/Entfernen, Hinweisdialog und die Quellen-Weiche (`source`) sind weg; der Mod ist der einzige Weg, Agents zu melden. Einstellungen → Verbindung zeigt „Claude-Mod verbunden“ (Event in den letzten 5 Minuten) und sonst den Installationsbefehl.
+- **Alte Hooks verschwinden automatisch:** Beim Start entfernt die App ihre `--kayy-office`-Einträge aus `~/.claude/settings.json` (Backup, fremde Hooks bleiben) und das gestagte `hook.js`.
+- **Autostart ab dem ersten Start** der installierten App (abschaltbar unter Einstellungen → System).
+- Neues Debug-Flag `--claude-dir=<Ordner>` ersetzt `~/.claude` für Testläufe. Der Mod sendet kein `source` mehr.
+
 ## 1.2.1 – 2026-10-31
 Aufgeräumt, ohne neue Funktionen.
 - Das Willkommensfenster ist entfallen: Beim ersten Start öffnen sich die Einstellungen mit kurzer Einführung.

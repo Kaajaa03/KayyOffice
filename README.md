@@ -11,15 +11,10 @@ Pixel-Büro für **Claude-Code-Agents** unter Windows. Jeder Agent sitzt in eine
 npm install
 npm start          # baut und startet die App (Tray-Icon unten rechts)
 ```
-Beim ersten Start öffnen sich die **Einstellungen** mit einer kurzen Einführung (Sprache, „Hooks installieren“, **Demo** 15 s). Das Büro erscheint oben mittig, sobald Agents arbeiten. **Strg+Alt+O** blendet es ein und aus; Doppelklick auf das Tray-Icon öffnet die **Einstellungen**. Voraussetzung: Node.js im PATH (für Hooks). Installer: `npm run dist` erzeugt `release/Kayy Office Setup <Version>.exe` und eine Portable-Version.
+Beim ersten Start öffnen sich die **Einstellungen** mit einer kurzen Einführung (Sprache, Installationsbefehl für den Mod, **Demo** 15 s). Das Büro erscheint oben mittig, sobald Agents arbeiten. **Strg+Alt+O** blendet es ein und aus; Doppelklick auf das Tray-Icon öffnet die **Einstellungen**. Die installierte App startet ab dem ersten Start mit Windows (abschaltbar unter Einstellungen → System). Installer: `npm run dist` erzeugt `release/Kayy Office Setup <Version>.exe` und eine Portable-Version.
 
-## Zwei Wege, Agents anzuschließen
-| Weg | Was du bekommst |
-|---|---|
-| **Claude-Mod `kayy-office`** (empfohlen) | Status, Modell pro Agent, Kosten, Datei, **Fortschritt der Aufgabenliste**, Router, Freigaben, Pane in der Claude-App, Autopilot und Orchestrierungs-Richtlinie |
-| **Hooks** (Einstellungen → Verbindung → „Installieren“) | Status, Datei, Fortschritt, Freigaben; funktioniert auch mit der CLI ohne Mod |
-
-Beides gleichzeitig ist erlaubt: Meldet der Mod für eine Session, ignoriert das Overlay die Hook-Events derselben Session (keine Doppelzählung, keine Doppelkarten).
+## Claude-Mod anschließen
+Der Claude-Mod `kayy-office` ist der einzige Weg: Status, Modell pro Agent, Kosten, Datei, **Fortschritt der Aufgabenliste**, Router, Freigaben, Pane in der Claude-App, Autopilot und Orchestrierungs-Richtlinie. Er gilt für jeden Chat, ohne weitere Einrichtung. Alte Hook-Einträge (`--kayy-office`) aus früheren Versionen entfernt die App beim Start selbst (mit Backup der `settings.json`).
 
 **Mod installieren (lokal):**
 ```bash
@@ -75,8 +70,8 @@ Tray-Menü: Anzeigen/Verstecken, **Einstellungen…**, Demo zeigen, Beenden. All
 | **Darstellung** | Sprache, Größe (5 Stufen mit Anzeige, z. B. „133 %“), Transparenz-Regler |
 | **Position** | sechs Plätze als Raster; sonst Titelleiste ziehen |
 | **Freigaben** | riskant / alle / nie, mit je einem Satz Erklärung |
-| **Verbindung** | Hooks installiert ✓/✗ mit Installieren/Entfernen (Ergebnis direkt im Fenster), Claude-Mod verbunden (in den letzten 5 Minuten aktiv), Port |
-| **System** | Mit Windows starten (nur installierte Version), Wach bleiben |
+| **Verbindung** | Claude-Mod verbunden ✓/— (Event in den letzten 5 Minuten), bei „—“ der Installationsbefehl, Port |
+| **System** | Mit Windows starten (nur installierte Version, beim ersten Start an), Wach bleiben |
 | **Werkzeuge** | Demo, Dev-Log, Wochen-Recap, Rollen-Datei, Diagnose-Log |
 
 Gespeichert in `config.json` (`scale`, `position`/`placement`, `opacity`, `language`, `approvals`, `awake`).
@@ -90,7 +85,6 @@ Gespeichert in `config.json` (`scale`, `position`/`placement`, `opacity`, `langu
 | Orchestrierungs-Richtlinie | kostet ~125 Tokens je Turn (aus dem Cache, ein Bruchteil davon als Preis); spart nur, wenn dadurch **große Suchausgaben aus dem Haupt-Kontext bleiben**. Wer sie nicht will: `/office orchestrator off` |
 | Subagents allgemein | **kosten selbst**: jeder startet kalt und liest Dateien neu. Lohnen sich bei breiten Suchen und Parallelarbeit, nicht für Kleinkram |
 | Autopilot, Freigabe-Karten | sparen **deine Zeit**, keine Tokens |
-| Hooks | kosten ~60 ms je Aufruf, laufen jetzt asynchron; mit dem Mod überflüssig (das Overlay bietet an, sie zu entfernen) |
 
 ## Ressourcen (`npm run perf`)
 | | CPU | RAM (privat, alle Prozesse) |
@@ -110,7 +104,7 @@ npm run mock -- team # Fake-Events (single | team | permission | error | cleanup
 npm run perf         # Leerlauf-Abnahme (PASS/FAIL); "-- active" für Last
 npm run dist         # Installer + Portable nach release/
 ```
-Debug-Flags: `--demo`, `--demo-count=<n>`, `--screenshot=<png>`, `--hour=<0-23>`, `--no-card`, `--settings`, `--scale=<0.67|1|1.33|1.67|2>`, `--lang=<de|en>`, `--config-dir=<Ordner>` (eigene Konfiguration für Testläufe). Scale und Sprache per Flag werden nicht gespeichert. Mod-Tests: `claude plugin test mod/kayy-office`. CI: GitHub Actions (`.github/workflows/ci.yml`).
+Debug-Flags: `--demo`, `--demo-count=<n>`, `--screenshot=<png>`, `--hour=<0-23>`, `--no-card`, `--settings`, `--scale=<0.67|1|1.33|1.67|2>`, `--lang=<de|en>`, `--config-dir=<Ordner>` (eigene Konfiguration für Testläufe), `--claude-dir=<Ordner>` (ersetzt `~/.claude`, für Testläufe). Scale und Sprache per Flag werden nicht gespeichert. Mod-Tests: `claude plugin test mod/kayy-office`. CI: GitHub Actions (`.github/workflows/ci.yml`).
 
 ## Roadmap
 Weitere Tools (Codex, Cursor) als Adapter, Tauri-Portierung für noch weniger RAM. Bewusst nicht geplant: Chat-zu-Chat-Nachrichten (Endlos-Ping-Pong-Risiko), Telemetrie, Auto-Update.

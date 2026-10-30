@@ -1,13 +1,10 @@
-import { describe, it, expect, afterEach } from 'vitest';
-import { spawn } from 'node:child_process';
+import { describe, it, expect } from 'vitest';
 import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { parseEvent } from '../src/main/validate';
 import { initialState, reduce } from '../src/main/state';
 import { EventLog, renderDevLog, localDate } from '../src/main/log';
-import { startServer } from '../src/main/server';
-import { loadConfig, updateConfig } from '../src/main/config';
 import { pillLines } from '../src/renderer/pill';
 import type { Agent, AgentEvent } from '../src/shared/types';
 
@@ -109,40 +106,5 @@ describe('progress in the name pill', () => {
   });
   it('a long current is truncated to the pill width budget', () => {
     expect(pillLines(ag({ progress: { done: 0, total: 3, current: 'Eine wirklich sehr lange Aufgabenbeschreibung' } }), 'de').sub.length).toBeLessThanOrEqual(16);
-  });
-});
-
-describe('hook.js maps TodoWrite to progress', () => {
-  const HOOK = resolve(__dirname, '../hook/hook.js');
-  const closers: Array<() => Promise<void>> = [];
-  afterEach(async () => { while (closers.length) await closers.pop()!(); });
-
-  function run(dir: string, input: unknown): Promise<void> {
-    return new Promise((res) => {
-      const p = spawn('node', [HOOK], { env: { ...process.env, KAYY_CONFIG_DIR: dir } });
-      p.on('close', () => res());
-      p.stdin.end(JSON.stringify(input));
-    });
-  }
-
-  it('sends done/total/current for a PostToolUse of TodoWrite and nothing for other tools', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'kayy-hook-'));
-    const cfg = loadConfig(dir);
-    const got: AgentEvent[] = [];
-    const s = await startServer({ token: cfg.token, port: 48210, onEvent: (e) => got.push(e) });
-    closers.push(s.close);
-    updateConfig(dir, { port: s.port });
-    const todos = [
-      { content: 'Plan', status: 'completed', activeForm: 'Planning' },
-      { content: 'Build', status: 'in_progress', activeForm: 'Building it' },
-      { content: 'Ship', status: 'pending', activeForm: 'Shipping' },
-    ];
-    await run(dir, { hook_event_name: 'PostToolUse', session_id: 's1', tool_name: 'TodoWrite', cwd: 'C:\\p', tool_input: { todos } });
-    await run(dir, { hook_event_name: 'PostToolUse', session_id: 's1', tool_name: 'Bash', cwd: 'C:\\p', tool_input: { todos } });
-    await run(dir, { hook_event_name: 'PostToolUse', session_id: 's1', tool_name: 'TodoWrite', cwd: 'C:\\p', tool_input: { todos: 'broken' } });
-    expect(got).toHaveLength(3);
-    expect(got[0].progress).toEqual({ done: 1, total: 3, current: 'Building it' });
-    expect(got[1].progress).toBeUndefined();
-    expect(got[2].progress).toBeUndefined();
   });
 });

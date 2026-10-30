@@ -6,7 +6,6 @@ import { InteractiveSync } from '../src/renderer/interactive';
 import { writeFileAtomic } from '../src/main/fsutil';
 import { initialState, nextDueMs, pruneStale, reduce, tick } from '../src/main/state';
 import { parseEvent } from '../src/main/validate';
-import { installHooks } from '../src/main/installer';
 import type { Agent, AgentEvent } from '../src/shared/types';
 
 describe('InteractiveSync (renderer/main click-through agreement)', () => {
@@ -75,17 +74,5 @@ describe('task progress can be cleared explicitly', () => {
     expect(s.agents.s.progress?.done).toBe(1);
     s = reduce(s, { ...base, progress: null });
     expect(s.agents.s.progress).toBeUndefined();
-  });
-});
-
-describe('settings parse errors never echo file content', () => {
-  it('does not leak a snippet of an invalid settings.json into the error message', () => {
-    const p = join(mkdtempSync(join(tmpdir(), 'kayy-set-')), 'settings.json');
-    writeFileSync(p, 'sk-ant-api03-VERYSECRETVALUE');
-    let message = '';
-    try { installHooks(p, 'C:\\h\\hook.js'); } catch (e) { message = (e as Error).message; }
-    expect(message).toMatch(/settings\.json/);
-    expect(message).not.toContain('sk-ant');
-    expect(message).not.toContain('SECRET');
   });
 });

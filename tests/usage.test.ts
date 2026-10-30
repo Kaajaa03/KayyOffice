@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import { parseEvent } from '../src/main/validate';
 import { initialState, nextDueMs, pruneStale, reduce, tick } from '../src/main/state';
 import { EventLog } from '../src/main/log';
-import { SourceGate } from '../src/main/source';
 import type { AgentEvent } from '../src/shared/types';
 
 const base: AgentEvent = { ts: 1, sessionId: 's', agentId: 's', event: 'PostToolUse', cwd: 'C:\dev\Proj', tool: 'Bash' };
@@ -98,15 +97,10 @@ describe('Roster event in the reducer', () => {
   });
 });
 
-describe('Roster in log and gate', () => {
+describe('Roster in log', () => {
   it('EventLog does not count or persist a Roster event', () => {
     const log = new EventLog(null);
     log.append({ ...base, event: 'Roster', roster: [{ type: 'a' }] });
     expect(Object.keys(log.day('1970-01-01').perAgent)).toEqual([]);
-  });
-  it('SourceGate treats Roster like any event', () => {
-    const g = new SourceGate(() => 0);
-    expect(g.acceptEvent({ ...base, event: 'Roster', source: 'mod' })).toBe(true);
-    expect(g.acceptEvent({ ...base, event: 'Roster', source: 'hook' })).toBe(false);
   });
 });

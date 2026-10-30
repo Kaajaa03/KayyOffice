@@ -58,8 +58,8 @@ function render(): void {
   el('opacity-out').textContent = percent(snap.opacity);
   setPicked('placement', snap.placement ?? '');
   setPicked('approvals', snap.approvals);
-  setStatus('s-hooks', t(lang, snap.hooks ? 'welcome.status.hooksOn' : 'welcome.status.hooksOff'), snap.hooks ? 'ok' : 'bad');
   setStatus('s-mod', t(lang, snap.mod ? 'set.mod.on' : 'set.mod.off'), snap.mod ? 'ok' : '');
+  el('mod-hint').hidden = snap.mod;
   setStatus('s-port', t(lang, 'welcome.status.port', { port: snap.port }), 'ok');
   el<HTMLInputElement>('autostart').checked = snap.autostart;
   el<HTMLInputElement>('autostart').disabled = !snap.autostartAvailable;
@@ -127,8 +127,6 @@ async function run(name: string, msgId: string): Promise<void> {
   void refresh();
 }
 
-el('hooks-install').addEventListener('click', () => void run('install-hooks', 'm-hooks'));
-el('hooks-remove').addEventListener('click', () => void run('remove-hooks', 'm-hooks'));
 document.querySelectorAll<HTMLElement>('[data-action]').forEach((b) => {
   b.addEventListener('click', () => void run(b.dataset.action!, 'm-tools'));
 });

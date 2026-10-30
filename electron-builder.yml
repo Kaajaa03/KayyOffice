@@ -6,8 +6,6 @@ files:
   - dist/**
   - package.json
 extraResources:
-  - from: hook
-    to: hook
   - from: build/icon.ico
     to: icon.ico
 win:

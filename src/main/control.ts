@@ -1,6 +1,6 @@
 import type { PermissionDecision, PermissionRequestInfo } from '../shared/types';
 
-/** After this long without an answer the hook falls back to Claude Code's normal prompt. */
+/** After this long without an answer the mod falls back to Claude Code's normal prompt. */
 export const PERMISSION_TIMEOUT_MS = 20000;
 
 interface Waiting {

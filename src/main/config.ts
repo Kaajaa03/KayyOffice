@@ -9,6 +9,8 @@ interface Config {
   port: number;
   devLogDir?: string;
   welcomeShown?: boolean;
+  /** Set once the installed app switched "start with Windows" on by default (the user's later choice stays). */
+  autostartInit?: boolean;
   /** 'all' | 'risky' (default) | 'off': which permission requests get an overlay card. */
   approvals?: string;
   /** 'de' | 'en'; absent = follow the system language. */
@@ -23,8 +25,6 @@ interface Config {
   opacity?: number;
   /** Keep the PC awake while agents work; absent = on. */
   awake?: boolean;
-  /** 'asked' once the user was told that hooks are redundant while the Claude mod reports. */
-  hooksAdvice?: string;
 }
 
 const DEFAULT_PORT = 47821;

@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
 /**
- * Request signing between the overlay and its clients (hook.js, the Claude mod).
+ * Request signing between the overlay and its clients (the Claude mod).
  * The token itself NEVER travels: a process squatting on the port must not learn it, otherwise it
  * could forge both the request check and the response proof.
  *   x-kayy-nonce : fresh random hex per request (replays are rejected by NonceCache)

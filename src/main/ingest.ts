@@ -1,4 +1,4 @@
-// Connects the local HTTP server (hook/mod events, permission requests) to the office and the card queue.
+// Connects the local HTTP server (mod events, permission requests) to the office and the card queue.
 import { randomUUID } from 'node:crypto';
 import { shouldShowCard } from './approvals';
 import type { ApprovalMode } from './approvals';
@@ -6,18 +6,17 @@ import type { PermissionQueue } from './control';
 import type { EventLog } from './log';
 import type { Office } from './office';
 import { startServer } from './server';
-import type { SourceGate } from './source';
 
 interface IngestDeps {
   token: string;
   port: number;
-  gate: SourceGate;
   eventLog: EventLog;
   office: Office;
   queue: PermissionQueue;
   approvalMode(): ApprovalMode;
   showOverlay(): void;
-  onModEvent(): void;
+  /** Any event was received (settings status "Claude mod connected"). */
+  onEvent(): void;
 }
 
 export function startIngest(d: IngestDeps) {
@@ -25,13 +24,11 @@ export function startIngest(d: IngestDeps) {
     token: d.token,
     port: d.port,
     onEvent: (e) => {
-      if (!d.gate.acceptEvent(e)) return;
-      if (e.source === 'mod') d.onModEvent();
+      d.onEvent();
       d.eventLog.append(e);
       d.office.apply(e);
     },
     onPermission: (p, signal) => {
-      if (!d.gate.acceptPermission(p)) return Promise.resolve('ask' as const);
       // everyday requests stay with Claude's own dialog; the overlay only speaks up for real risks
       if (!shouldShowCard(d.approvalMode(), p.tool, p.summary)) return Promise.resolve('ask' as const);
       d.office.apply({

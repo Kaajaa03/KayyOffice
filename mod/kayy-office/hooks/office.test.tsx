@@ -103,7 +103,7 @@ test('maps session, tool, subagent, turn and end to overlay events', async ($: a
   expect(sent.every(s => s.isAuthentic)).toBe(true)
   expect(sent.some(s => 'x-kayy-token' in s.headers || JSON.stringify(s.headers).includes(TOKEN) || s.raw.includes(TOKEN))).toBe(false)
   expect(new Set(sent.map(s => s.headers['x-kayy-nonce'])).size).toBe(sent.length)
-  const base = { ts: 1_000, sessionId: 's1', cwd: '/proj', source: 'mod' }
+  const base = { ts: 1_000, sessionId: 's1', cwd: '/proj' }
   expect(events()).toEqual([
     { ...base, agentId: 's1', event: 'SessionStart', model: 'claude-opus-5-5', costUsd: 0.42 },
     { ...base, agentId: 's1', event: 'PreToolUse', tool: 'Read', file: '/proj/src/a.ts', model: 'claude-opus-5-5' },
