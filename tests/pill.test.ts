@@ -28,6 +28,10 @@ describe('pillLines', () => {
     expect(pillLines(ag({ status: 'idle' })).sub).toBe('idle');
     expect(pillLines(ag({ status: 'error' })).sub).toBe('error');
   });
+  it('a waiting agent that asks a real decision says so (Orchestrator signal)', () => {
+    expect(pillLines(ag({ status: 'waiting', message: 'Entscheidung: Welche Datenbank?' })).sub).toBe('Entscheidung');
+    expect(pillLines(ag({ status: 'waiting', message: 'permission: Bash' })).sub).toBe('needs you');
+  });
   it('status dot colors differ per state and title/sub are truncated', () => {
     const dots = new Set((['working', 'waiting', 'done', 'idle', 'error'] as const).map((s) => pillLines(ag({ status: s })).dot));
     expect(dots.size).toBe(5);

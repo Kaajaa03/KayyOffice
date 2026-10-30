@@ -24,6 +24,8 @@ export interface PillLines { title: string; sub: string; dot: string }
 
 export function pillLines(a: Agent): PillLines {
   let sub = SUB[a.status];
+  // the Claude mod flags real decisions (AskUserQuestion / plan approval) with this message prefix
+  if (a.status === 'waiting' && a.message?.startsWith('Entscheidung')) sub = 'Entscheidung';
   if (a.status === 'working') {
     const file = a.file?.split(/[\\/]/).filter(Boolean).pop();
     sub = file ?? CATEGORY[a.category ?? 'other'];
