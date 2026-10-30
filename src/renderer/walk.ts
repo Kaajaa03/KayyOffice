@@ -4,9 +4,9 @@ import type { Pt } from './room';
 
 export const WALK_MS = 4000;
 export const COFFEE_MS = 20_000;
-export const LOUNGE_WALK_MS = 4000;
+const LOUNGE_WALK_MS = 4000;
 
-export type DonePhase = 'toCoffee' | 'coffee' | 'toLounge' | 'lounge';
+type DonePhase = 'toCoffee' | 'coffee' | 'toLounge' | 'lounge';
 
 /**
  * Where a finished agent is, `elapsed` ms after it became done. t = progress within the phase.
@@ -33,8 +33,8 @@ export function walkPath(from: Pt, to: Pt, aisleY: number): Pt[] {
   return pts.filter((p, i) => i === 0 || p.x !== pts[i - 1].x || p.y !== pts[i - 1].y);
 }
 
-export type Dir = 'left' | 'right' | 'up' | 'down';
-export interface Walker extends Pt { dir: Dir; frame: 0 | 1 }
+type Dir = 'left' | 'right' | 'up' | 'down';
+interface Walker extends Pt { dir: Dir; frame: 0 | 1 }
 
 const dirOf = (a: Pt, b: Pt): Dir =>
   b.x !== a.x ? (b.x > a.x ? 'right' : 'left') : b.y < a.y ? 'up' : 'down';

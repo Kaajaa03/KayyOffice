@@ -1,4 +1,4 @@
-export interface ModelChip { letter: string; color: string }
+interface ModelChip { letter: string; color: string }
 
 const FAMILIES: Array<[RegExp, ModelChip]> = [
   [/haiku/i, { letter: 'H', color: '#38d9a9' }],

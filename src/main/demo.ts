@@ -26,7 +26,7 @@ const DEMO_PROJECTS = ['C:\\dev\\KayyOffice', 'C:\\dev\\site', 'C:\\dev\\infra',
 const DEMO_STATUS: Agent['status'][] = ['working', 'working', 'waiting', 'done', 'working', 'error', 'idle', 'done', 'working', 'working'];
 const DEMO_CATEGORY: Array<Agent['category']> = ['code', 'terminal', 'browser', 'other'];
 const DEMO_MODEL = ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5'];
-export const DEMO_MAX = 60;
+const DEMO_MAX = 60;
 
 /** `--demo-count=<n>`: n agents over 1-4 projects with mixed statuses, for layout checks. */
 export function demoCountState(count: number, now = Date.now()): AppState {

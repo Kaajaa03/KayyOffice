@@ -7,6 +7,7 @@ import { FrameGate, animTime, animationMode } from './loop';
 import { t } from '../shared/i18n';
 import type { Lang } from '../shared/i18n';
 import { askerLabel } from './pill';
+import { placePills } from './pillplace';
 import { formatCost } from '../shared/model';
 import { projectOf } from '../shared/project';
 import { MAX_H, P, roomLayout } from './room';
@@ -18,7 +19,7 @@ import {
   CLOCK_Y, DISPLAY_Y, FOOTER_FONT, FOOTER_H, HEADER_FONT, HEADER_H, PILL_H, SMALL_FONT,
   blit, bottomChairY, chairBackSprite, drawClockHands, drawHint, drawPill, drawScreen, drawText,
   glowSprite, lookFor, monitorBackSprite, monitorBackY, monitorFrontY, paintFrame, paintRoom,
-  personSprite, r, wallItems,
+  personSprite, pillWidth, r, wallItems,
 } from './sprites';
 import type { Pose } from './sprites';
 
@@ -274,7 +275,12 @@ function draw(now: number): void {
     }
     const items = agentDrawables(ctx, room, seated, animTime(now, reduced), ph, dpr, reduced).sort((a, b) => a.z - b.z);
     for (const d of items) d.draw();
-    for (const d of items) if (d.pill) drawPill(ctx, d.pill.agent, d.pill.x * P, d.pill.top, dpr, lang);
+    const pills = items.filter((d) => d.pill).map((d) => d.pill!);
+    const spots = placePills(
+      pills.map((q) => ({ cx: q.x * P, top: q.top, w: pillWidth(q.agent, lang), h: PILL_H })),
+      { left: 0, right: room.w * P, top: 0, bottom: roomH + FOOTER_H / 2 },
+    );
+    pills.forEach((q, i) => drawPill(ctx, q.agent, spots[i].x, spots[i].top, dpr, lang));
     panelH = HEADER_H + roomH + FOOTER_H;
   } else if (hint) {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);

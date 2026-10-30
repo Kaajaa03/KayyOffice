@@ -3,7 +3,7 @@ import { t } from '../shared/i18n';
 import type { Key, Lang } from '../shared/i18n';
 import type { Agent, AgentStatus } from '../shared/types';
 
-export const STATUS_DOT: Record<AgentStatus, string> = {
+const STATUS_DOT: Record<AgentStatus, string> = {
   working: '#51cf66', waiting: '#ffa94d', done: '#4dabf7', idle: '#868e96', error: '#ff6b6b',
 };
 
@@ -25,7 +25,7 @@ export function labelFor(a: Agent, lang: Lang): string {
   return projectName(a);
 }
 
-export interface PillLines { title: string; sub: string; dot: string }
+interface PillLines { title: string; sub: string; dot: string }
 
 export function pillLines(a: Agent, lang: Lang): PillLines {
   let sub = t(lang, SUB[a.status]);

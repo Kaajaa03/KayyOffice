@@ -83,7 +83,7 @@ export function encodePng(width: number, height: number, rgba: Buffer): Buffer {
   return Buffer.concat([PNG_SIGNATURE, chunk('IHDR', ihdr), chunk('IDAT', deflateSync(raw, { level: 9 })), chunk('IEND', Buffer.alloc(0))]);
 }
 
-export interface IcoImage { size: number; png: Buffer }
+interface IcoImage { size: number; png: Buffer }
 
 /** ICO container whose entries are PNG-compressed images (Vista+; size 256 is stored as 0). */
 export function encodeIco(images: IcoImage[]): Buffer {

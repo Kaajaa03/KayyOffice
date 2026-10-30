@@ -33,7 +33,7 @@ const de = {
   'label.subAgent': 'Sub-Agent',
   // room
   'room.stats': 'Arbeitet: {working}  ·  Wartet: {waiting}',
-  'room.overflow': '+{n} ohne Platz',
+  'room.overflow': '+{n} weitere',
   'room.displayWorking': 'Arbeitet {n}',
   'room.displayWaiting': 'Wartet {n}',
   'footer.agents.one': '{n} Agent',
@@ -118,7 +118,7 @@ const en: Record<Key, string> = {
   'pill.thinking': 'thinking',
   'label.subAgent': 'sub-agent',
   'room.stats': 'Working: {working}  ·  Waiting: {waiting}',
-  'room.overflow': '+{n} without a seat',
+  'room.overflow': '+{n} more',
   'room.displayWorking': 'Working {n}',
   'room.displayWaiting': 'Waiting {n}',
   'footer.agents.one': '{n} agent',
@@ -173,7 +173,7 @@ const en: Record<Key, string> = {
 
 const TABLES: Record<Lang, Record<Key, string>> = { de, en };
 
-export type Params = Record<string, string | number>;
+type Params = Record<string, string | number>;
 
 export function t(lang: Lang, key: Key, params?: Params): string {
   const text = TABLES[lang][key];

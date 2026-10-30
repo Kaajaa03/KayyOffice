@@ -1,7 +1,7 @@
 import type { Key } from './i18n';
 
 /** "Blast radius": a local, LLM-free guess at how destructive a pending tool call is. */
-export interface Risk {
+interface Risk {
   level: 'none' | 'medium' | 'high';
   /** i18n key of the explanation (absent when level is 'none'). */
   note?: Key;

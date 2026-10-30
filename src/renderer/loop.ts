@@ -19,7 +19,7 @@ export function animationMode(agents: Agent[], now = Date.now(), reduced = false
 /** Animation clock for sprites: frozen at 0 under reduced motion (no bobbing, blinking or steam). */
 export const animTime = (now: number, reduced: boolean): number => (reduced ? 0 : now);
 
-export interface FrameGateOptions {
+interface FrameGateOptions {
   activeFps: number;
   idleFps: number;
 }

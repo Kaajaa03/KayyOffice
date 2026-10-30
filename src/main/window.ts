@@ -4,6 +4,8 @@ import type { Lang } from '../shared/i18n';
 import { iconPath } from './icon';
 
 export const OVERLAY_W = 900;
+/** Narrowest width the room (one desk cluster + kitchen + lounge) fits into. */
+export const OVERLAY_MIN_W = 460;
 /** Room (max 300) + header/footer + a permission card below it. Transparent and click-through, so spare height costs nothing. */
 export const OVERLAY_H = 460;
 
@@ -11,7 +13,7 @@ export function createOverlay(): BrowserWindow {
   const wa = screen.getPrimaryDisplay().workArea;
   // --overlay-width=<px> is a debug flag (small-display checks); the default is min(900, 60 % of the work area)
   const forced = Number(process.argv.find((a) => /^--overlay-width=\d{3,4}$/.test(a))?.slice(16));
-  const width = forced || Math.min(OVERLAY_W, Math.round(wa.width * 0.6));
+  const width = forced || Math.min(wa.width, Math.max(OVERLAY_MIN_W, Math.min(OVERLAY_W, Math.round(wa.width * 0.6))));
   const win = new BrowserWindow({
     width,
     height: Math.min(OVERLAY_H, wa.height),
@@ -46,6 +48,7 @@ export function createWelcome(lang: Lang): BrowserWindow {
   const win = new BrowserWindow({
     width: 580,
     height: 700,
+    useContentSize: true,
     title: 'Kayy Office',
     backgroundColor: '#0f1422',
     icon: iconPath(),

@@ -4,7 +4,7 @@ import type { Agent } from '../shared/types';
 import { roomLayout } from './room';
 
 /** Seat index; the room geometry (room.ts) maps it to a position. */
-export interface Desk {
+interface Desk {
   agentId: string;
   slot: number;
 }
@@ -48,7 +48,7 @@ export class DeskLayout {
   }
 }
 
-export interface OfficeStats { total: number; working: number; waiting: number; costUsd: number | null }
+interface OfficeStats { total: number; working: number; waiting: number; costUsd: number | null }
 
 /** Footer numbers; cost sums top-level sessions only (subagent cost is part of its session). */
 export function officeStats(agents: Agent[]): OfficeStats {

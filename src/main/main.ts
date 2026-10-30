@@ -308,7 +308,7 @@ async function main(): Promise<void> {
 
   if (flag('demo') || demoCount) {
     startDemo(null);
-    void queue.add({ id: 'demo', agentId: 'reviewer', tool: 'Bash', summary: 'git push --force origin main' });
+    if (!flag('no-card')) void queue.add({ id: 'demo', agentId: demoCount ? `agent${Math.min(3, demoCount)}` : 'reviewer', tool: 'Bash', summary: 'git push --force origin main' });
   } else {
     const server = await startServer({
       token: config.token,

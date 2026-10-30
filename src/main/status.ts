@@ -23,7 +23,7 @@ export function hooksInstalled(settingsText: string | null): boolean {
   }));
 }
 
-export interface TooltipStats { working: number; waiting: number }
+interface TooltipStats { working: number; waiting: number }
 
 /** Tray tooltip: "Kayy Office – 3 aktiv · 1 wartet". */
 export function tooltipText(stats: TooltipStats, lang: Lang): string {
