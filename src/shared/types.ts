@@ -6,7 +6,8 @@ export type EventName =
   | 'Stop'
   | 'SubagentStart'
   | 'SubagentStop'
-  | 'SessionEnd';
+  | 'SessionEnd'
+  | 'Roster';
 
 export const EVENT_NAMES: readonly EventName[] = [
   'SessionStart',
@@ -17,6 +18,7 @@ export const EVENT_NAMES: readonly EventName[] = [
   'SubagentStart',
   'SubagentStop',
   'SessionEnd',
+  'Roster',
 ];
 
 export interface AgentEvent {
@@ -39,6 +41,28 @@ export interface AgentEvent {
   costUsd?: number;
   /** Task-list progress (TodoWrite): completed / total and the task in progress. `null` clears it. */
   progress?: Progress | null;
+  /** Context-window usage of the session (percent 0-100). */
+  context?: ContextUsage;
+  /** Account usage limit (e.g. five_hour, seven_day). */
+  limit?: UsageLimit;
+  /** Available agent types (only on 'Roster' events, which never create or change an agent). */
+  roster?: RosterEntry[];
+}
+
+export interface ContextUsage {
+  percent: number;
+  tokens?: number;
+  window?: number;
+}
+
+export interface UsageLimit {
+  kind: string;
+  percent: number;
+}
+
+export interface RosterEntry {
+  type: string;
+  model?: string;
 }
 
 export interface Progress {
@@ -71,6 +95,10 @@ export interface Agent {
   costUsd?: number;
   /** Task-list progress; kept until the agent stops or a new session starts. */
   progress?: Progress;
+  /** Context-window usage; sticky, replaced by a newer value. */
+  context?: ContextUsage;
+  /** Account limit; sticky, replaced by a newer value. */
+  limit?: UsageLimit;
 }
 
 export type PermissionDecision = 'allow' | 'deny' | 'ask';
@@ -93,6 +121,8 @@ export interface PermissionRequestInfo {
 
 export interface AppState {
   agents: Record<string, Agent>;
+  /** Latest list of available agent types (survives SessionEnd; not about sessions). */
+  roster?: RosterEntry[];
 }
 
 export function toolCategory(tool?: string): ToolCategory {

@@ -31,8 +31,10 @@ Danach in einer neuen Sitzung `/office` (Pane und Status). Entfernen: `claude pl
 ## Im Büro
 - **Namensschild:** Status-Punkt, Name, Modell-Chip (**H**aiku, **S**onnet, **O**pus, **F**able), darunter die aktuelle Aufgabe oder Datei. Ein goldener Balken zeigt den **Fortschritt** der Aufgabenliste (`TodoWrite`).
 - **Zustände:** *arbeitet* (Bildschirm zeigt Code, Terminal oder Browser), *braucht dich* (steht auf, „!“), *Entscheidung* (Claude hat dir eine echte Frage gestellt), *fertig* (Kaffee, dann Lounge), *Fehler* (roter Bildschirm, ausgelöst durch `PostToolUseFailure`), *ruht*.
-- **Licht:** Tageszeit und Sonnenstand folgen der echten Zeit, nachts leuchten Lampen und Bildschirme. Fußzeile: Anzahl, aktiv, wartend, Session-Kosten.
+- **Licht:** Tageszeit und Sonnenstand folgen der echten Zeit, nachts leuchten Lampen und Bildschirme. Fußzeile: Anzahl, aktiv, wartend, Session-Kosten, **Kontext** der Session (z. B. „Kontext 34 %“) und Konto-Limit („5h 21 %“); ab 70 % bernstein, ab 85 % rot.
+- **Wartebereich:** Die Agent-Typen, die der Claude-Mod meldet (Scout, Coder, Tester …), sitzen gedimmt auf Sofa und Sitzsäcken der Lounge, mit Kürzel und Modell-Chip. Sobald ein Typ arbeitet, wechselt er an einen Schreibtisch; mehr als sechs Wartende erscheinen als „+n“.
 - **Sprache:** Deutsch oder Englisch (Tray → „Sprache“), Standard nach System. **Reduzierte Bewegung** (Windows-Einstellung) wird respektiert.
+- **Verschieben:** Die Titelleiste des Büros („KAYY OFFICE“) mit der Maus ziehen, die Position wird gemerkt und bleibt auch nach einem Monitor-Wechsel erreichbar. Feste Plätze (oben/unten, links/Mitte/rechts) unter Tray → „Position des Büros“.
 
 ## Freigaben
 Das Overlay zeigt eine Karte mit **Erlauben / Ablehnen**, wenn Claude etwas freigeben lassen will (Tray → „Freigabe-Karten“):
@@ -47,7 +49,8 @@ Keine Antwort in 20 s, App aus oder Fehler ⇒ ganz normaler Claude-Dialog. `Exi
 
 ## Orchestrator (im Mod)
 - **Autopilot** `/office autopilot on|off|status` (Standard **aus**): gibt nur Routine ohne Rückfrage frei, nämlich Lesen und Schreiben im Projektordner sowie eine enge Liste von Shell-Befehlen. Nie ein „Nein“ von Claude, nie Pläne, Fragen, MCP oder Web. Nur für eigene, vertrauenswürdige Projekte.
-- **Orchestrierungs-Richtlinie** `/office orchestrator on|off` (Standard **an**): ein kurzer System-Prompt-Abschnitt, der Claude zum Delegieren an `kayy-scout` (Haiku), `kayy-coder` (Sonnet) und `kayy-architect` (Opus) anhält und dich nur bei Unumkehrbarem, Richtung oder Kosten fragen lässt.
+- **Orchestrierungs-Richtlinie** `/office orchestrator on|off` (Standard **an**): ein kurzer System-Prompt-Abschnitt (rund 125 Tokens, im Cache). Er sagt Claude, **direkt zu arbeiten und nur dann zu delegieren, wenn es sich lohnt**, weil ein Subagent kalt startet: breite Suchen → `kayy-scout` (Haiku), unabhängige Aufgaben parallel, klare Umsetzung → `kayy-coder` (Sonnet), fehlende Tests → `kayy-tester`, riskante oder große Diffs vor dem Abschluss → `kayy-reviewer`, Design und schwere Bugs → `kayy-architect` (Opus). Dich fragt Claude nur bei Unumkehrbarem, Richtung oder Kosten.
+- **Subagent-Typen** liegen als Dateien in `~/.claude/agents/` (`kayy-scout`, `kayy-coder`, `kayy-tester`, `kayy-reviewer`, `kayy-architect`); sie stehen im Wartebereich des Büros, bis sie gebraucht werden.
 - **Entscheidungs-Signal:** stellt Claude eine echte Frage, steht der Agent auf und zeigt „Entscheidung“.
 - **Router** `/router status|on|off`: wählt für Subagents das passende Modell.
 
@@ -61,11 +64,22 @@ Keine Antwort in 20 s, App aus oder Fehler ⇒ ganz normaler Claude-Dialog. `Exi
 ## Dev-Log
 Events werden pro Tag als JSONL unter `%APPDATA%\KayyOffice\logs` gesammelt (ohne Nachrichtentext, ohne Aufgabentexte; Dateien älter als 30 Tage werden beim Start gelöscht). Tray → „Dev-Log (heute)“ und „Wochen-Recap“ erzeugen Markdown mit Tool-Calls, aktiver Zeit, erledigten Aufgaben und Dateien. Zielordner per `devLogDir` in `config.json` (z. B. Obsidian-Vault); Dateinamen `kayy-devlog-<Datum>.md`, damit nie eine eigene Notiz überschrieben wird.
 
+## Was spart Tokens, was nicht (ehrlich)
+| | Wirkung |
+|---|---|
+| Büro, Overlay, Tray, Dev-Log | **0 Tokens**, rein lokal |
+| **Router** (Subagents auf Haiku/Sonnet statt immer Opus) | **spart** merklich, sobald Subagents laufen |
+| **Kontext- und Limit-Anzeige** | verhindert teure Überlänge: Kontext ab 70 % ist Zeit für `/compact` oder eine neue Sitzung, denn jeder Turn liest den ganzen Kontext neu |
+| Orchestrierungs-Richtlinie | kostet ~125 Tokens je Turn (aus dem Cache, ein Bruchteil davon als Preis); spart nur, wenn dadurch **große Suchausgaben aus dem Haupt-Kontext bleiben**. Wer sie nicht will: `/office orchestrator off` |
+| Subagents allgemein | **kosten selbst**: jeder startet kalt und liest Dateien neu. Lohnen sich bei breiten Suchen und Parallelarbeit, nicht für Kleinkram |
+| Autopilot, Freigabe-Karten | sparen **deine Zeit**, keine Tokens |
+| Hooks | kosten ~60 ms je Aufruf, laufen jetzt asynchron; mit dem Mod überflüssig (das Overlay bietet an, sie zu entfernen) |
+
 ## Ressourcen (`npm run perf`)
 | | CPU | RAM (privat, alle Prozesse) |
 |---|---|---|
-| Leerlauf | ~0,01 % | ~90 MB |
-| 5 Agents aktiv | ~0,8 % | ~98 MB |
+| Leerlauf | ~0,01–0,1 % | ~80 MB |
+| 5 Agents aktiv | ~1 % | ~100 MB |
 
 Möglich durch event-getriebenes Rendering (ohne Aktivität keine Animationsschleife, kein Dauer-Timer), einmal gezeichneten Raum im Cache und Software-Rendering mit In-Process-GPU. `KAYY_GFX=hw` schaltet auf GPU-Rendering.
 

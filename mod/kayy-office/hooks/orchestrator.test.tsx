@@ -50,9 +50,9 @@ const PANE = {
 
 // ---------- orchestration policy (pure) ----------
 
-test('the policy text is one short English section of at most 110 words', () => {
-  expect(ORCHESTRATOR_TEXT.split(/\s+/).filter(Boolean).length <= 110).toBe(true)
-  for (const word of ['kayy-scout', 'kayy-coder', 'kayy-architect', 'parallel', 'irreversible', 'assumption']) {
+test('the policy text is lean English: at most 100 words, names all five agents and the cold start', () => {
+  expect(ORCHESTRATOR_TEXT.split(/\s+/).filter(Boolean).length <= 100).toBe(true)
+  for (const word of ['kayy-scout', 'kayy-coder', 'kayy-tester', 'kayy-reviewer', 'kayy-architect', 'cold', 'irreversible', 'assumption']) {
     expect(ORCHESTRATOR_TEXT).toContain(word)
   }
 })

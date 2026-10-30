@@ -78,7 +78,7 @@ export function assignRole(agent: Agent, roles: RoleDef[]): { role?: string; col
 
 export function applyRoles(state: AppState, roles: RoleDef[]): AppState {
   if (!roles.length) return state;
-  return { agents: Object.fromEntries(Object.entries(state.agents).map(([id, a]) => [id, { ...a, ...assignRole(a, roles) }])) };
+  return { ...state, agents: Object.fromEntries(Object.entries(state.agents).map(([id, a]) => [id, { ...a, ...assignRole(a, roles) }])) };
 }
 
 export function groupByProject(agents: Agent[]): Record<string, Agent[]> {

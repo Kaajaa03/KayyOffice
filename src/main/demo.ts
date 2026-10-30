@@ -1,4 +1,14 @@
-import type { Agent, AppState } from '../shared/types';
+import type { Agent, AppState, RosterEntry } from '../shared/types';
+
+/** Agent types the demo offers; two of them are in use by demo agents, the rest wait on the bench. */
+const DEMO_ROSTER: RosterEntry[] = [
+  { type: 'kayy-scout', model: 'haiku' },
+  { type: 'kayy-coder', model: 'sonnet' },
+  { type: 'kayy-tester', model: 'sonnet' },
+  { type: 'kayy-reviewer', model: 'sonnet' },
+  { type: 'kayy-architect', model: 'opus' },
+  { type: 'codex-worker' },
+];
 
 /** Fixed sample office for the tray demo and visual checks (`--demo`). */
 export function demoState(now = Date.now()): AppState {
@@ -7,9 +17,9 @@ export function demoState(now = Date.now()): AppState {
     model: string, extra: Partial<Agent> = {},
   ): Agent => ({ id, sessionId: extra.parentId ?? id, cwd, status, category, model, lastEventTs: now, ...extra });
   const list = [
-    mk('planner', 'C:\\ai\\Claude', 'working', 'other', 'claude-opus-5-5', { costUsd: 0.84 }),
+    mk('planner', 'C:\\ai\\Claude', 'working', 'other', 'claude-opus-5-5', { costUsd: 0.84, name: 'kayy-architect', limit: { kind: 'five_hour', percent: 62 } }),
     mk('coder', 'C:\\dev\\KayyOffice', 'working', 'code', 'claude-sonnet-5-5', {
-      file: 'C:\\dev\\KayyOffice\\src\\main\\state.ts', costUsd: 1.32, progress: { done: 3, total: 7, current: 'Reducer testen' },
+      file: 'C:\\dev\\KayyOffice\\src\\main\\state.ts', costUsd: 1.32, name: 'kayy-coder', context: { percent: 34, tokens: 68_000, window: 200_000 }, progress: { done: 3, total: 7, current: 'Reducer testen' },
     }),
     mk('tester', 'C:\\dev\\KayyOffice', 'working', 'terminal', 'claude-haiku-5-5', { costUsd: 0.07, progress: { done: 5, total: 6, current: 'Suite ausführen' } }),
     mk('researcher', 'C:\\dev\\site', 'working', 'browser', 'claude-haiku-5-5', { costUsd: 0.12 }),
@@ -21,7 +31,7 @@ export function demoState(now = Date.now()): AppState {
     mk('writer', 'C:\\dev\\site', 'done', undefined, 'claude-sonnet-5-5', { lastEventTs: now - 8000, costUsd: 0.31 }),
     mk('docs', 'C:\\dev\\infra', 'done', undefined, 'claude-haiku-5-5', { lastEventTs: now - 120_000, costUsd: 0.04 }),
   ];
-  return { agents: Object.fromEntries(list.map((a) => [a.id, a])) };
+  return { agents: Object.fromEntries(list.map((a) => [a.id, a])), roster: DEMO_ROSTER };
 }
 
 const DEMO_PROJECTS = ['C:\\dev\\KayyOffice', 'C:\\dev\\site', 'C:\\dev\\infra', 'C:\\ai\\Claude'];
@@ -48,5 +58,9 @@ export function demoCountState(count: number, now = Date.now()): AppState {
       costUsd: parent ? undefined : +(0.05 + (i % 7) * 0.31).toFixed(2),
     };
   }
-  return { agents };
+  agents.agent1.name = 'kayy-architect';
+  agents.agent1.context = { percent: 34 };
+  agents.agent1.limit = { kind: 'five_hour', percent: 62 };
+  if (agents.agent2) agents.agent2.name = 'kayy-coder';
+  return { agents, roster: DEMO_ROSTER };
 }

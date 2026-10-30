@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.1.0 – 2026-10-30
+Effizienz und Bedienung.
+- **Büro verschiebbar:** Titelleiste ziehen oder feste Plätze im Tray; Position wird gemerkt und nach Monitor-Wechsel zurück auf einen Bildschirm geholt.
+- **Weniger Ballast:** Hooks laufen asynchron (Claude wartet nicht mehr ~60 ms pro Aufruf); sobald der Mod meldet, bietet das Overlay einmalig an, die überflüssigen Hooks zu entfernen.
+- **Schlankere Richtlinie:** nur noch ~125 Tokens und „direkt arbeiten, nur delegieren wenn es sich lohnt“ statt pauschalem Delegieren.
+- **Neue Subagent-Typen:** `kayy-tester` und `kayy-reviewer` (Router: Sonnet).
+- **Nutzung in der Fußzeile:** Kontextfüllung der Session und Konto-Limit (`context`, `limit` im Protokoll), Warnstufen ab 70 % und 85 %.
+- **Wartebereich:** neues Event `Roster` (verfügbare Agent-Typen); nicht eingesetzte Typen warten als gedimmte Figuren in der Lounge, ohne Schreibtischplätze oder Dauer-Animation zu kosten.
+- Demo (`--demo`, `--demo-count`) zeigt Roster, Kontext und Limit.
+
 ## 1.0.0 – 2026-10-30
 Polish-Release.
 - **Fortschritt pro Agent:** `TodoWrite` (Mod und Hook) → Balken und aktuelle Aufgabe am Namensschild, erledigte Aufgaben im Dev-Log.

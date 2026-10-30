@@ -30,6 +30,7 @@ export class EventLog {
   constructor(private dir: string | null) {}
 
   append(e: AgentEvent): void {
+    if (e.event === 'Roster') return; // available types, not activity: neither persisted nor counted
     const date = localDate(e.ts);
     this.ingest(this.summary(date), e);
     if (this.dir) {

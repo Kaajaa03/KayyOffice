@@ -54,6 +54,10 @@ describe('applyRoles', () => {
     expect(out.agents.b.role).toBeUndefined();
     expect(input.agents.a.role).toBeUndefined();
   });
+  it('keeps the roster', () => {
+    const roster = [{ type: 'kayy-scout' }];
+    expect(applyRoles({ agents: { a: ag('a') }, roster }, roles).roster).toBe(roster);
+  });
 });
 
 describe('groupByProject', () => {

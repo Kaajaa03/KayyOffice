@@ -7,9 +7,10 @@ import { InteractiveSync } from './interactive';
 import { FrameGate, animTime, animationMode } from './loop';
 import { t } from '../shared/i18n';
 import type { Lang } from '../shared/i18n';
+import { benchPlan } from './bench';
+import { footerParts } from './footer';
 import { askerLabel } from './pill';
 import { placePills } from './pillplace';
-import { formatCost } from '../shared/model';
 import { projectOf } from '../shared/project';
 import { MAX_H, P, roomLayout } from './room';
 import type { Pt, Room, Seat } from './room';
@@ -17,8 +18,8 @@ import { dayPhase } from './sun';
 import type { DayPhase } from './sun';
 import { doneTimeline, pointAlong, walkPath } from './walk';
 import {
-  CLOCK_Y, DISPLAY_Y, FOOTER_FONT, FOOTER_H, HEADER_FONT, HEADER_H, PILL_H, SMALL_FONT,
-  blit, bottomChairY, chairBackSprite, drawClockHands, drawHint, drawPill, drawScreen, drawText,
+  BENCH_TAG_H, CLOCK_Y, DISPLAY_Y, FOOTER_FONT, FOOTER_H, HEADER_FONT, HEADER_H, PILL_H, SMALL_FONT,
+  benchTagWidth, blit, bottomChairY, chairBackSprite, drawBenchTag, drawClockHands, drawHint, drawPill, drawScreen, drawText, drawTextRuns,
   glowSprite, lookFor, monitorBackSprite, monitorBackY, monitorFrontY, paintFrame, paintRoom,
   personSprite, pillWidth, r, wallItems,
 } from './sprites';
@@ -85,14 +86,9 @@ function resize(): void {
   canvas.height = Math.round(window.innerHeight * dpr);
 }
 
-function footerText(agents: Agent[]): string {
-  const s = officeStats(agents);
-  const parts = [t(lang, s.total === 1 ? 'footer.agents.one' : 'footer.agents.other', { n: s.total })];
-  if (s.working) parts.push(t(lang, 'footer.active', { n: s.working }));
-  if (s.waiting) parts.push(t(lang, 'footer.waiting', { n: s.waiting }));
-  if (s.costUsd !== null) parts.push(formatCost(s.costUsd));
-  return parts.join('  ·  ');
-}
+const METER_COLOR = { ok: 'rgba(229,231,235,0.8)', warn: '#ffc078', high: '#ff8787' } as const;
+const footerRuns = (agents: Agent[]): Array<{ text: string; color: string }> =>
+  footerParts(agents, lang).map((p) => ({ text: p.text, color: METER_COLOR[p.level ?? 'ok'] }));
 
 function ensureStatic(room: Room, ph: DayPhase, occupied: Set<number>, labels: string[], dpr: number): void {
   const key = `${room.w}x${room.h}|${dpr}|${ph}|${[...occupied].sort((a, b) => a - b).join(',')}|${labels.join('/')}`;
@@ -227,6 +223,29 @@ function agentDrawables(c: CanvasRenderingContext2D, room: Room, seated: Array<{
   return out;
 }
 
+interface BenchTag { cx: number; top: number; w: number; name: string; chip: { letter: string; color: string } | null }
+
+/** Roster figures waiting on the lounge furniture (static pose, dimmed) and their compact labels. */
+function benchDrawables(c: CanvasRenderingContext2D, room: Room, agents: Agent[], ph: DayPhase, dpr: number): { items: Drawable[]; tags: BenchTag[] } {
+  const plan = benchPlan(state.roster, agents);
+  const items: Drawable[] = [];
+  const tags: BenchTag[] = [];
+  const tagAt = (x: number, y: number, name: string, chip: BenchTag['chip']): void =>
+    void tags.push({ cx: x * P, top: y * P - BENCH_TAG_H - 2, w: benchTagWidth(name, chip), name, chip });
+  plan.figures.forEach((f, i) => {
+    const spot = room.benchSpots[i];
+    const look = lookFor({ id: 'bench|' + f.type } as Agent);
+    items.push({ z: spot.y + 16, draw: () => {
+      c.globalAlpha = 0.62;
+      blit(c, personSprite(look, 'lounge', dpr, ph), spot.x - 4, spot.y, dpr);
+      c.globalAlpha = 1;
+    } });
+    tagAt(spot.x, spot.y, f.name, f.chip);
+  });
+  if (plan.more) tagAt(room.loungeX + 58, room.benchSpots[0].y, '+' + plan.more, null);
+  return { items, tags };
+}
+
 function draw(now: number): void {
   const dpr = window.devicePixelRatio || 1;
   const w = window.innerWidth;
@@ -267,7 +286,7 @@ function draw(now: number): void {
     drawText(ctx, 'KAYY OFFICE', 42, 13, HEADER_FONT, '#9aa3b5', 'left', dpr);
     const head = t(lang, 'room.stats', { working: st.working, waiting: st.waiting }) + (overflow ? `  ·  ${t(lang, 'room.overflow', { n: overflow })}` : '');
     drawText(ctx, head, room.w * P - 10, 13, HEADER_FONT, st.waiting ? '#ffc078' : '#dee2e6', 'right', dpr);
-    drawText(ctx, footerText(agents), (room.w * P) / 2, HEADER_H + roomH + 14, FOOTER_FONT, 'rgba(229,231,235,0.8)', 'center', dpr);
+    drawTextRuns(ctx, footerRuns(agents), (room.w * P) / 2, HEADER_H + roomH + 14, FOOTER_FONT, 'rgba(229,231,235,0.5)', dpr);
 
     // room content
     ctx.setTransform(dpr, 0, 0, dpr, ox * dpr, HEADER_H * dpr);
@@ -279,14 +298,16 @@ function draw(now: number): void {
         drawText(ctx, t(lang, 'room.displayWaiting', { n: st.waiting }), (it.x + 3) * P, (DISPLAY_Y + 12) * P, SMALL_FONT, st.waiting ? '#ffa94d' : '#74c0fc', 'left', dpr);
       }
     }
-    const items = agentDrawables(ctx, room, seated, animTime(now, reduced), ph, dpr, reduced).sort((a, b) => a.z - b.z);
+    const bench = benchDrawables(ctx, room, agents, ph, dpr);
+    const items = [...agentDrawables(ctx, room, seated, animTime(now, reduced), ph, dpr, reduced), ...bench.items].sort((a, b) => a.z - b.z);
     for (const d of items) d.draw();
     const pills = items.filter((d) => d.pill).map((d) => d.pill!);
     const spots = placePills(
-      pills.map((q) => ({ cx: q.x * P, top: q.top, w: pillWidth(q.agent, lang), h: PILL_H })),
+      [...pills.map((q) => ({ cx: q.x * P, top: q.top, w: pillWidth(q.agent, lang), h: PILL_H })), ...bench.tags.map((q) => ({ cx: q.cx, top: q.top, w: q.w, h: BENCH_TAG_H }))],
       { left: 0, right: room.w * P, top: 0, bottom: roomH + FOOTER_H / 2 },
     );
     pills.forEach((q, i) => drawPill(ctx, q.agent, spots[i].x, spots[i].top, dpr, lang));
+    bench.tags.forEach((q, i) => drawBenchTag(ctx, q.name, q.chip, spots[pills.length + i].x, spots[pills.length + i].top, dpr));
     panelH = HEADER_H + roomH + FOOTER_H;
   } else if (hint) {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);

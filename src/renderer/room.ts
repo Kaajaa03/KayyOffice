@@ -40,6 +40,8 @@ export interface Room {
   loungeX: number;
   coffee: Pt;
   loungeSpots: Pt[];
+  /** Where roster figures wait (sofa, beanbags); inside the lounge only, never a desk. */
+  benchSpots: Pt[];
   /** Head-top y of the walkway along the back wall. */
   wallAisleY: number;
 }
@@ -92,6 +94,15 @@ export function roomLayout(slots: number, maxW = MAX_W, maxH = MAX_H): Room {
       { x: loungeX + 16, y: ly + 31 },
       { x: loungeX + 74, y: ly + 31 },
       { x: loungeX + 34, y: ly - 1 },
+    ],
+    // filled from the far end so a resting agent in loungeSpots[0] rarely shares a seat with a waiting one
+    benchSpots: [
+      { x: loungeX + 46, y: ly - 1 },
+      { x: loungeX + 74, y: ly + 31 },
+      { x: loungeX + 16, y: ly + 31 },
+      { x: loungeX + 60, y: ly + 31 },
+      { x: loungeX + 34, y: ly - 1 },
+      { x: loungeX + 22, y: ly - 1 },
     ],
     wallAisleY: WALL_H + 1,
   };

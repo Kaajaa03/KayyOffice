@@ -14,6 +14,8 @@ export const DEFAULT_RULES: Rules = {
     'claude-code-guide': 'haiku',
     'general-purpose': 'sonnet',
     'kayy-coder': 'sonnet',
+    'kayy-tester': 'sonnet',
+    'kayy-reviewer': 'sonnet',
     Plan: 'opus',
     'kayy-architect': 'opus',
   },

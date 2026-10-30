@@ -26,4 +26,13 @@ describe('demoCountState (--demo-count=<n>)', () => {
   it('the fixed demo is unchanged in size', () => {
     expect(Object.keys(demoState().agents).length).toBe(10);
   });
+  it('both demos carry a roster, context and a five-hour limit; two types are in use', () => {
+    for (const s of [demoState(), demoCountState(5)]) {
+      expect(s.roster!.length).toBeGreaterThanOrEqual(6);
+      const agents = Object.values(s.agents);
+      expect(agents.some((a) => a.context?.percent === 34)).toBe(true);
+      expect(agents.some((a) => a.limit?.kind === 'five_hour' && a.limit.percent === 62)).toBe(true);
+      expect(s.roster!.filter((e) => agents.some((a) => a.name === e.type)).length).toBe(2);
+    }
+  });
 });

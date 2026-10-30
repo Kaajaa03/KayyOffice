@@ -409,6 +409,7 @@ function lounge(c: Ctx, room: Room, phase: DayPhase): void {
   };
   bean(lx + 16, '#e07a5f');
   bean(lx + 74, '#f2cc8f');
+  bean(lx + 60, '#81c3d7');
   // floor lamp in the corner
   r(c, lx + 81, 10, 1, 21, '#4b4f58');
   r(c, lx + 79, 30, 5, 1, '#4b4f58');
@@ -721,7 +722,54 @@ export function drawText(c: Ctx, text: string, x: number, y: number, font: strin
   c.drawImage(cv, Math.round(left), Math.round(y - 10), w, 14);
 }
 
-export const SMALL_FONT = `700 7px ${FONT}`;
+/** Dim label of a figure on the bench: name plus optional model chip, one line. */
+const TAG_FONT = `700 7px ${FONT}`;
+export const BENCH_TAG_H = 11;
+type Chip = { letter: string; color: string } | null;
+
+const benchTagText = (name: string): string => fit(name, TAG_FONT, 54);
+export const benchTagWidth = (name: string, chip: Chip): number => Math.ceil(measure(benchTagText(name), TAG_FONT) + 8 + (chip ? 11 : 0));
+
+export function drawBenchTag(c: Ctx, name: string, chip: Chip, cx: number, top: number, dpr: number): void {
+  const text = benchTagText(name);
+  const w = benchTagWidth(name, chip);
+  const cv = textCanvas(`tag|${text}|${chip?.letter}`, dpr, w, BENCH_TAG_H, (q) => {
+    q.fillStyle = 'rgba(22,26,36,0.72)';
+    q.beginPath();
+    q.roundRect(0.5, 0.5, w - 1, BENCH_TAG_H - 1, 4);
+    q.fill();
+    q.fillStyle = '#c4cad6';
+    q.font = TAG_FONT;
+    q.fillText(text, 4, 8);
+    if (chip) {
+      const x = 4 + measure(text, TAG_FONT) + 3;
+      q.fillStyle = chip.color;
+      q.beginPath();
+      q.roundRect(x, 1.5, 7, 8, 2);
+      q.fill();
+      q.fillStyle = '#0b1020';
+      q.font = `800 6px ${FONT}`;
+      q.textAlign = 'center';
+      q.fillText(chip.letter, x + 3.5, 7.6);
+    }
+  });
+  c.drawImage(cv, Math.round(cx - w / 2), Math.round(top), w, BENCH_TAG_H);
+}
+
+/** One centred line made of differently coloured runs, joined by a dim separator. */
+export function drawTextRuns(c: Ctx, runs: Array<{ text: string; color: string }>, cx: number, y: number, font: string, sepColor: string, dpr: number): void {
+  const SEP = '  ·  ';
+  const widths = runs.map((q) => Math.ceil(measure(q.text, font)) + 2);
+  const sepW = Math.ceil(measure(SEP, font)) + 2;
+  let x = cx - (widths.reduce((a, b) => a + b, 0) + sepW * (runs.length - 1)) / 2;
+  runs.forEach((q, i) => {
+    if (i) { drawText(c, SEP, x, y, font, sepColor, 'left', dpr); x += sepW; }
+    drawText(c, q.text, x, y, font, q.color, 'left', dpr);
+    x += widths[i];
+  });
+}
+
+export const SMALL_FONT =`700 7px ${FONT}`;
 export const HEADER_FONT = `700 10px ${FONT}`;
 export const FOOTER_FONT = `600 10px ${FONT}`;
 

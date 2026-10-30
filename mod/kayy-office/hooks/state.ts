@@ -26,6 +26,10 @@ export type Office = {
   progress: Map<string, Progress>
   waiters: Map<string, (decision: 'allow' | 'deny' | 'ask' | undefined) => void>
   rules?: Rules
+  /** Rounded context/limit percent last sent for this session; a move of less than a point is not sent. */
+  sentMeter: { context?: number; limit?: number }
+  /** User and plugin agent types offered so far (never built-ins); a new one sends a Roster event. */
+  roster: Set<string>
   /** Cached from $.store at session start: autopilot (default off), orchestrator (default on). */
   isAutopilot?: boolean
   isOrchestrator?: boolean
@@ -39,6 +43,8 @@ export const newOffice = (): Office => ({
   spawned: new Map(),
   progress: new Map(),
   waiters: new Map(),
+  sentMeter: {},
+  roster: new Set(),
 })
 
 /** Upserts one agent row; done rows beyond the cap are dropped first. */

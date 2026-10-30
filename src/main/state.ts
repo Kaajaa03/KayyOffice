@@ -29,15 +29,19 @@ function upsert(state: AppState, e: AgentEvent, patch: Partial<Agent>): AppState
     model: e.model ?? prev?.model,
     costUsd: e.costUsd ?? prev?.costUsd,
     file: e.file ?? prev?.file,
+    context: e.context ?? prev?.context,
+    limit: e.limit ?? prev?.limit,
     progress: e.progress === null ? undefined : (e.progress ?? prev?.progress),
     message: undefined,
     ...patch,
     lastEventTs: e.ts,
   };
-  return { agents: { ...state.agents, [e.agentId]: agent } };
+  return { ...state, agents: { ...state.agents, [e.agentId]: agent } };
 }
 
 export function reduce(state: AppState, e: AgentEvent): AppState {
+  // a Roster event is about available agent types: it never creates or changes an agent
+  if (e.event === 'Roster') return e.roster ? { ...state, roster: e.roster } : state;
   switch (e.event) {
     case 'SessionStart':
       return upsert(state, e, { status: 'idle', progress: undefined });
@@ -58,7 +62,7 @@ export function reduce(state: AppState, e: AgentEvent): AppState {
       const agents = Object.fromEntries(
         Object.entries(state.agents).filter(([, a]) => a.sessionId !== e.sessionId),
       );
-      return { agents };
+      return { ...state, agents };
     }
   }
 }
@@ -75,7 +79,7 @@ export function tick(state: AppState, now: number): AppState {
       changed = true;
     } else agents[id] = a;
   }
-  return changed ? { agents } : state;
+  return changed ? { ...state, agents } : state;
 }
 
 /** Delay in ms until tick/pruneStale next have something to do; null when nothing is time-driven. */
@@ -92,5 +96,5 @@ export function nextDueMs(state: AppState, now: number): number | null {
 export function pruneStale(state: AppState, now: number): AppState {
   const entries = Object.entries(state.agents);
   const kept = entries.filter(([, a]) => now - a.lastEventTs < staleAfter(a));
-  return kept.length === entries.length ? state : { agents: Object.fromEntries(kept) };
+  return kept.length === entries.length ? state : { ...state, agents: Object.fromEntries(kept) };
 }

@@ -33,6 +33,7 @@ declare module 'claude-code' {
       link: OverlayLink
       autopilot: AutopilotState
       decision: string | null
+      meter: { context: number | null; limit: { kind: string; percent: number } | null }
     }
   }
 }

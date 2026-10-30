@@ -2,16 +2,16 @@ import type { PromptComposeSection } from 'claude-code'
 
 export const ORCHESTRATOR_ID = 'kayy-office:orchestrator'
 
-/** The one section the orchestrator adds to the system prompt (English, under 110 words). */
+/** The one section the orchestrator adds to the system prompt (English, at most 100 words). */
 export const ORCHESTRATOR_TEXT = [
-  'Kayy orchestration policy.',
-  'Delegate when it saves cost or time: searching and reading go to kayy-scout (haiku);',
-  'clearly specified implementation goes to kayy-coder (sonnet);',
-  'design, hard debugging and security review go to kayy-architect (opus).',
-  'Run independent subtasks in parallel. Do not delegate trivial work.',
-  'Decisions: ask the user only about irreversible or destructive actions, direction or architecture choices, or spending money;',
-  'otherwise decide yourself, state the assumption in one line and continue.',
-  'Never ask permission for routine reading or editing inside the project.',
+  'Kayy policy. Work directly; a subagent starts cold, so delegate only when it pays:',
+  'wide searches/reads that would flood this context → kayy-scout (haiku); independent tasks in parallel;',
+  'clear implementation → kayy-coder (sonnet); tests missing → kayy-tester;',
+  'risky or large diffs before finishing → kayy-reviewer; design or hard bugs → kayy-architect (opus).',
+  'Give subagents exact paths, a one-line goal and a report limit (150 words).',
+  'Run the relevant tests before calling work done.',
+  'Ask the user only about irreversible actions, direction/architecture or cost;',
+  'otherwise decide, note the assumption in one line, continue.',
 ].join(' ')
 
 /** The engine's sections with the policy as the last `session` section (on), or without it (off). */

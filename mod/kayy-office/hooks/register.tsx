@@ -8,13 +8,18 @@ import { renderPane } from './pane'
 import { autopilotCheck } from './autopilot'
 import { withOrchestrator } from './orchestrator'
 import { AUTOPILOT_WARNING, autopilotIoFor, autopilotSummary, decisionOf, loadSwitches, setAutopilot, setDecision, setOrchestrator } from './pilot'
-import { aliasOf, countRoute, routeFor, routerCommand, showStatus, summary, usd } from './router'
+import { aliasOf, countRoute, loadRules, readUsage, routeFor, routerCommand, showStatus, summary } from './router'
+import { DEFAULT_RULES } from './routing'
 import { MAIN, newOffice, setAgent, type Office } from './state'
 
 const agents = atom({ plugin: 'kayy-office', key: 'agents' } as const, [] as AgentRow[], { shape: 'agents-1' })
 const pending = atom({ plugin: 'kayy-office', key: 'pending' } as const, [] as PendingRow[], { shape: 'pending-1' })
 const cost = atom({ plugin: 'kayy-office', key: 'cost' } as const, null as number | null)
 const isOff = atom({ plugin: 'kayy-office', key: 'isOff' } as const, false)
+const meter = atom(
+  { plugin: 'kayy-office', key: 'meter' } as const,
+  { context: null as number | null, limit: null as { kind: string; percent: number } | null },
+)
 
 const TITLE = 'Kayy Office'
 
@@ -48,6 +53,37 @@ async function quietly(work: Promise<unknown>) {
   } catch {
     // pane state is best effort
   }
+}
+
+const moved = (last: number | undefined, now: number) => last === undefined || Math.abs(now - last) >= 1
+
+/**
+ * One usage read: cost, plus context and limit for the overlay only when their rounded percent
+ * moved by a point since the last one sent. The pane always gets the latest values.
+ */
+async function snapshot($: EngineInterface, office: Office) {
+  const u = await readUsage($)
+  await quietly(update($, meter, () => ({ context: u.context?.percent ?? null, limit: u.limit ?? null })))
+  const out: { costUsd?: number; context?: typeof u.context; limit?: typeof u.limit } = { costUsd: u.cost }
+  if (u.context !== undefined && moved(office.sentMeter.context, u.context.percent)) {
+    out.context = u.context
+    office.sentMeter.context = u.context.percent
+  }
+  if (u.limit !== undefined && moved(office.sentMeter.limit, u.limit.percent)) {
+    out.limit = u.limit
+    office.sentMeter.limit = u.limit.percent
+  }
+  return { out, cost: u.cost }
+}
+
+/** The bench: offered user/plugin agent types, sorted, with the router's model where the rules know it. */
+async function emitRoster($: EngineInterface, office: Office) {
+  const rules = (await loadRules($, office)) ?? DEFAULT_RULES
+  const roster = [...office.roster].sort().slice(0, 12).map(type => {
+    const model = rules.byType[type]
+    return model === undefined ? { type } : { type, model }
+  })
+  await emit($, office, 'Roster', undefined, { roster })
 }
 
 const modelOf = (office: Office, agentId: string | undefined) =>
@@ -126,9 +162,11 @@ export const register: Register = on => {
     }
     await quietly(update($, agents, () => [{ id: MAIN, type: 'main', status: 'idle', ...(office.mainModel ? { model: office.mainModel } : {}) }]))
     await quietly(update($, pending, () => []))
-    const spent = await usd($)
+    office.sentMeter = {}
+    const { out, cost: spent } = await snapshot($, office)
     if (spent !== undefined) await quietly(update($, cost, () => spent))
-    await emit($, office, 'SessionStart', undefined, { model: office.mainModel, costUsd: spent })
+    await emit($, office, 'SessionStart', undefined, { model: office.mainModel, ...out })
+    if (office.roster.size > 0) await quietly(emitRoster($, office))
     await quietly(warnRouterOnce($))
     await quietly(loadSwitches($, office))
     return started
@@ -231,7 +269,7 @@ export const register: Register = on => {
       await quietly(setAgent($, e.agentId, { status: failed ? 'error' : 'done', tool: undefined, file: undefined, progress: undefined }))
     } else {
       if (e.usage?.model) office.mainModel = e.usage.model
-      await emit($, office, 'Stop', undefined, { model: office.mainModel, costUsd: await usd($) })
+      await emit($, office, 'Stop', undefined, { model: office.mainModel, ...(await snapshot($, office)).out })
       office.progress.delete(MAIN)
       await quietly(setAgent($, MAIN, { status: 'idle', tool: undefined, file: undefined, progress: undefined, model: office.mainModel }))
     }
@@ -245,8 +283,19 @@ export const register: Register = on => {
     office.sessionId = undefined
     office.spawned.clear()
     office.progress.clear()
+    office.sentMeter = {}
     await quietly(update($, pending, () => []))
     return next(e)
+  }).catch(($, e, next) => next(e))
+
+  // Bench for waiting subagents: records user/plugin agent types as they are offered; never changes the offer.
+  on('agent.offer', async ($, e, next) => {
+    const offered = await next(e)
+    if (offered.isOffered !== false && e.source !== 'built-in' && e.agent.length > 0 && !office.roster.has(e.agent) && office.roster.size < 50) {
+      office.roster.add(e.agent)
+      await quietly(emitRoster($, office))
+    }
+    return offered
   }).catch(($, e, next) => next(e))
 
   // Orchestration policy: one short section at the end of the system prompt, while on.

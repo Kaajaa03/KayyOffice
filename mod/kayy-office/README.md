@@ -42,6 +42,13 @@ Never: `ExitPlanMode`, `AskUserQuestion`, MCP tools, `WebFetch`, `WebSearch`, an
 
 ## Orchestrator
 
-Adds one short English section (≤ 110 words, scope `session`) at the end of the system prompt: delegate searching/reading to `kayy-scout`, clear implementation to `kayy-coder`, design/hard debugging/security to `kayy-architect`, independent subtasks in parallel, nothing trivial; ask the user only about irreversible/destructive actions, direction/architecture or cost, otherwise decide, state the assumption in one line and continue. Turn it off with `/office orchestrator off`.
+Adds one lean English section (≤ 100 words, scope `session`) at the end of the system prompt: work directly, delegate only when it pays (a subagent starts cold): wide searches to `kayy-scout`, clear implementation to `kayy-coder`, missing tests to `kayy-tester`, risky diffs to `kayy-reviewer`, design/hard bugs to `kayy-architect`; hand over exact paths, a one-line goal and a report limit; run the tests before done; ask the user only about irreversible actions, direction/architecture or cost. Turn it off with `/office orchestrator off`.
+
+Router defaults (also in `rules.json`) now include `kayy-tester` and `kayy-reviewer` → `sonnet`; existing routes are unchanged.
+
+## Context, limit, roster
+
+- **Context and limit**: wherever the mod reads `$.session.usage()` for the cost (session start, end of a main turn; never with `breakdown`), it also sends `context: { percent, tokens?, window? }` and `limit: { kind, percent }` (`five_hour`, else the first rate limit). Each goes out only when its rounded percent moved by at least a point since the last one sent; never on tool calls. The pane shows `Kontext 34 % · 5h 21 %` (unknown parts omitted).
+- **Roster**: the `agent.offer` hook (offer passed through unchanged) records user/plugin agent types (`source` not `built-in`). A new type sends one `Roster` event with `roster: [{ type, model? }]` (sorted, max 12; `model` from the router rules when known), and the set is sent once more at session start.
 
 Run with `claude --plugin-dir <this folder>`. Tests: `claude plugin test <this folder>`.

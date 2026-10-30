@@ -40,6 +40,8 @@ const de = {
   'footer.agents.other': '{n} Agents',
   'footer.active': '{n} aktiv',
   'footer.waiting': '{n} wartet auf dich',
+  'footer.context': 'Kontext {n} %',
+  'footer.limit': '{kind} {n} %',
   'hint.start': 'Kayy Office läuft · wartet auf Agents · Strg+Alt+O',
   // tray
   'tray.toggle': 'Anzeigen / Verstecken ({hotkey})',
@@ -144,6 +146,8 @@ const en: Record<Key, string> = {
   'footer.agents.other': '{n} agents',
   'footer.active': '{n} active',
   'footer.waiting': '{n} waiting for you',
+  'footer.context': 'Context {n}%',
+  'footer.limit': '{kind} {n}%',
   'hint.start': 'Kayy Office is running · waiting for agents · Ctrl+Alt+O',
   'tray.toggle': 'Show / hide ({hotkey})',
   'tray.demo': 'Show demo (15 s)',

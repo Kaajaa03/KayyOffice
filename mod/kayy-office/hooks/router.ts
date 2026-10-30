@@ -1,4 +1,5 @@
 import { atom, read, update, type EngineInterface } from 'claude-code'
+import type { ContextInfo, LimitInfo } from './mapping'
 import { DEFAULT_RULES, chooseModel, type Alias } from './routing'
 import { parseRules } from './rules'
 import type { Office } from './state'
@@ -10,13 +11,36 @@ const cost = atom({ plugin: 'kayy-office', key: 'cost' } as const, null as numbe
 
 // Ported from kayy-router unchanged in behaviour: rules.json, defaults, verb heuristic, status line.
 
-export async function usd($: EngineInterface): Promise<number | undefined> {
+export type Usage = { cost?: number; context?: ContextInfo; limit?: LimitInfo }
+
+const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
+const pct = (v: number, max: number) => Math.min(max, Math.max(0, Math.round(v)))
+
+/** Cost, context fill and account limit from one `$.session.usage()` call (never with `breakdown`: it can cost tokens). */
+export async function readUsage($: EngineInterface): Promise<Usage> {
   try {
-    const value = (await $.session.usage()).cost?.usd
-    return typeof value === 'number' ? value : undefined
+    const u = await $.session.usage()
+    const out: Usage = {}
+    if (isNum(u.cost?.usd)) out.cost = u.cost.usd
+    const c = u.context
+    if (isNum(c?.percent)) {
+      out.context = { percent: pct(c.percent, 100) }
+      if (isNum(c.tokens)) out.context.tokens = c.tokens
+      if (isNum(c.window)) out.context.window = c.window
+    }
+    const limits = Array.isArray(u.rateLimits) ? u.rateLimits : []
+    const l = limits.find(r => r?.kind === 'five_hour') ?? limits[0]
+    if (l !== undefined && typeof l.kind === 'string' && l.kind.length > 0 && isNum(l.percentUsed)) {
+      out.limit = { kind: l.kind.slice(0, 20), percent: pct(l.percentUsed, 999) }
+    }
+    return out
   } catch {
-    return undefined
+    return {}
   }
+}
+
+export async function usd($: EngineInterface): Promise<number | undefined> {
+  return (await readUsage($)).cost
 }
 
 export async function summary($: EngineInterface) {

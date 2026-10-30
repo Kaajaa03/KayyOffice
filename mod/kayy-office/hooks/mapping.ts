@@ -10,6 +10,11 @@ export type EventName =
   | 'SubagentStart'
   | 'SubagentStop'
   | 'SessionEnd'
+  | 'Roster'
+
+export type ContextInfo = { percent: number; tokens?: number; window?: number }
+export type LimitInfo = { kind: string; percent: number }
+export type RosterEntry = { type: string; model?: string }
 
 export type AgentEvent = {
   ts: number
@@ -27,6 +32,9 @@ export type AgentEvent = {
   file?: string
   /** null clears the agent's bar in the overlay. */
   progress?: Progress | null
+  context?: ContextInfo
+  limit?: LimitInfo
+  roster?: RosterEntry[]
 }
 
 /** Who and where an event happened: the fields every event carries. */
@@ -86,6 +94,9 @@ export const makeEvent = (
     costUsd?: number
     file?: string
     progress?: Progress | null
+    context?: ContextInfo
+    limit?: LimitInfo
+    roster?: readonly RosterEntry[]
   } = {},
 ): AgentEvent => {
   const out: AgentEvent = {
@@ -110,5 +121,14 @@ export const makeEvent = (
   if (file !== undefined) out.file = file
   if (extra.progress !== undefined) out.progress = extra.progress
   if (typeof extra.costUsd === 'number' && Number.isFinite(extra.costUsd)) out.costUsd = extra.costUsd
+  if (extra.context !== undefined) out.context = extra.context
+  if (extra.limit !== undefined) out.limit = extra.limit
+  if (extra.roster !== undefined) {
+    out.roster = extra.roster.slice(0, 12).flatMap(r => {
+      const type = cut(r.type, 40)
+      const rowModel = cut(r.model, 100)
+      return type === undefined ? [] : [rowModel === undefined ? { type } : { type, model: rowModel }]
+    })
+  }
   return out
 }

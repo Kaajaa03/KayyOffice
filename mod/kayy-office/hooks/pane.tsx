@@ -11,6 +11,10 @@ const counts = atom({ plugin: 'kayy-office', key: 'counts' } as const, { haiku: 
 const isOff = atom({ plugin: 'kayy-office', key: 'isOff' } as const, false)
 const autopilot = atom({ plugin: 'kayy-office', key: 'autopilot' } as const, { isOn: false, auto: 0, asked: 0 } as AutopilotState)
 const decision = atom({ plugin: 'kayy-office', key: 'decision' } as const, null as string | null)
+const meter = atom(
+  { plugin: 'kayy-office', key: 'meter' } as const,
+  { context: null as number | null, limit: null as { kind: string; percent: number } | null },
+)
 const link = atom({ plugin: 'kayy-office', key: 'link' } as const, 'unknown' as OverlayLink)
 
 const STATUS: Record<AgentRow['status'], string> = {
@@ -47,7 +51,17 @@ export const ordered = (list: readonly AgentRow[]): { row: AgentRow; depth: numb
   return out
 }
 
-const cutTo = (s: string, n: number) => (s.length > n ? s.slice(0, Math.max(1, n - 1)) + '…' : s)
+const KIND_LABEL: Record<string, string> = { five_hour: '5h', seven_day: '7d' }
+
+/** "Kontext 34 % · 5h 21 %"; parts that are unknown are left out, undefined when both are. */
+export const meterLine = (m: { context: number | null; limit: { kind: string; percent: number } | null }): string | undefined => {
+  const parts: string[] = []
+  if (m.context !== null) parts.push(`Kontext ${m.context} %`)
+  if (m.limit !== null) parts.push(`${KIND_LABEL[m.limit.kind] ?? m.limit.kind} ${m.limit.percent} %`)
+  return parts.length > 0 ? parts.join(' · ') : undefined
+}
+
+const cutTo =(s: string, n: number) => (s.length > n ? s.slice(0, Math.max(1, n - 1)) + '…' : s)
 
 export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>, office: Office) {
   const { Box, Text, Button } = $.ui.resolve(e)
@@ -60,6 +74,7 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>, off
   const overlay = await read($, link)
   const pilot = await read($, autopilot)
   const open = await read($, decision)
+  const meterText = meterLine(await read($, meter))
 
   return (
     <Box flexDirection="column">
@@ -81,6 +96,7 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>, off
       })}
       <Text> </Text>
       <Text>Kosten: {spent === null ? 'unbekannt' : `$${spent.toFixed(2)}`}</Text>
+      {meterText !== undefined && <Text>{meterText}</Text>}
       <Text>
         Router{routerOff ? ' (aus)' : ''}: haiku {routed.haiku} · sonnet {routed.sonnet} · opus {routed.opus}
       </Text>
