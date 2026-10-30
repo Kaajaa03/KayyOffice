@@ -6,9 +6,8 @@ const STATUS = new Set(['pending', 'in_progress', 'completed'])
 const MAX_TOTAL = 99
 const MAX_CURRENT = 80
 
-// C0 and C1 control characters and DEL.
-// eslint-disable-next-line no-control-regex
-const CONTROL = /[\u0000-\u001f\u007f-\u009f]/g
+// C0 and C1 control characters, DEL, and the line/paragraph separators U+2028/U+2029.
+const CONTROL = new RegExp('[\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029]', 'g')
 
 const clean = (v: unknown): string | undefined => {
   if (typeof v !== 'string') return undefined
@@ -35,6 +34,10 @@ export const todoProgress = (input: unknown): Progress | undefined => {
   if (total < 1 || total > MAX_TOTAL) return undefined
   return current === undefined ? { done, total } : { done, total, current }
 }
+
+/** True when the input carries a `todos` array (even an empty one): a real list, not malformed input. */
+export const hasTodoList = (input: unknown): boolean =>
+  typeof input === 'object' && input !== null && Array.isArray((input as { todos?: unknown }).todos)
 
 export const sameProgress = (a: Progress | undefined, b: Progress | undefined): boolean =>
   a === b || (a !== undefined && b !== undefined && a.done === b.done && a.total === b.total && a.current === b.current)

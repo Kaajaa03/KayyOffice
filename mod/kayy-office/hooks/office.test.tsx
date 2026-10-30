@@ -13,7 +13,7 @@ type Options = {
   eventsFail?: boolean
   core?: () => 'allow' | 'ask' | 'deny'
   permission?: (req: Sent) => Reply | Promise<Reply>
-  toolResult?: any
+  toolResult?: any | (() => any)
   isPaneOpen?: boolean
   askByDefault?: boolean
   noSessionId?: boolean
@@ -78,7 +78,7 @@ const setup = async ($: any, on: any, o: Options = {}) => {
   on('session.start', (_: any, e: any) => ({ cwd: e.cwd }))
   on('session.end', (_: any, e: any) => ({ sessionId: e.sessionId }))
   on('turn.complete', () => ({ text: '' }))
-  on('tool.call', () => o.toolResult ?? { result: {} })
+  on('tool.call', () => (typeof o.toolResult === 'function' ? o.toolResult() : o.toolResult) ?? { result: {} })
   on('tool.check', () => ({ decision: o.core?.() ?? (o.permission || o.isPaneOpen || o.askByDefault ? 'ask' : 'allow') }))
   on('agent.spawn', (_: any, e: any) => ({ model: e.model ?? 'claude-sonnet-x', agentId: 'a1' }))
   await $.session.start({ cwd: '/proj', surface: 'desktop', isInteractive: true })
@@ -344,4 +344,85 @@ test('a subagent keeps its own progress until its own turn completes', async ($:
   const ui2 = await $.ui.mount({ ...PANE, surface: 'terminal' })
   expect((await ui2.find({ type: 'Text', text: /Explore/ }))?.text).not.toMatch(/\d\/\d/)
   await ui2.unmount()
+})
+
+// ---------- progress clear (null) ----------
+
+const empty = { tool: 'TodoWrite', todos: [] as unknown[] }
+
+test('an empty list after a real one sends exactly one progress null; a second empty list sends nothing', async ($: any, on: any) => {
+  const { clock, events } = await setup($, on)
+  await $.tool.call(todos('in_progress', 'pending'))
+  await $.tool.call(empty)
+  await $.tool.call(empty)
+  await flush(clock)
+  expect(posts(events).map(e => e.progress)).toEqual([{ done: 0, total: 2, current: 'Task 0 läuft' }, null, undefined])
+  expect(posts(events)[2]).not.toHaveProperty('progress')
+})
+
+test('after a null the same list is sent again', async ($: any, on: any) => {
+  const { clock, events } = await setup($, on)
+  await $.tool.call(todos('pending'))
+  await $.tool.call(empty)
+  await $.tool.call(todos('pending'))
+  await flush(clock)
+  expect(posts(events).map(e => e.progress)).toEqual([{ done: 0, total: 1 }, null, { done: 0, total: 1 }])
+})
+
+test('an empty list sends nothing when no progress was ever sent', async ($: any, on: any) => {
+  const { clock, events } = await setup($, on)
+  await $.tool.call(empty)
+  await flush(clock)
+  expect(events().some(e => 'progress' in e)).toBe(false)
+})
+
+test('a malformed todos value sends nothing and keeps the stored progress', async ($: any, on: any) => {
+  const { clock, events } = await setup($, on)
+  await $.tool.call(todos('pending'))
+  await $.tool.call({ tool: 'TodoWrite', todos: 'nope' })
+  await $.tool.call({ tool: 'TodoWrite' })
+  await $.tool.call(todos('pending'))
+  await flush(clock)
+  expect(posts(events).map(e => e.progress)).toEqual([{ done: 0, total: 1 }, undefined, undefined, undefined])
+})
+
+test('more than 99 items behave like an empty list', async ($: any, on: any) => {
+  const { clock, events } = await setup($, on)
+  await $.tool.call(todos('pending'))
+  await $.tool.call(todos(...Array(100).fill('pending')))
+  await $.tool.call(todos(...Array(100).fill('pending')))
+  await flush(clock)
+  expect(posts(events).map(e => e.progress)).toEqual([{ done: 0, total: 1 }, null, undefined])
+})
+
+test('a failed or denied empty TodoWrite sends no null and keeps the stored progress', async ($: any, on: any) => {
+  let result: any
+  const { clock, events } = await setup($, on, { toolResult: () => result })
+  await $.tool.call(todos('pending'))
+  result = { isError: true, result: 'x' }
+  await $.tool.call(empty)
+  result = { deny: 'nein' }
+  await $.tool.call(empty)
+  result = undefined
+  await $.tool.call(empty)
+  await flush(clock)
+  expect(posts(events).map(e => e.progress)).toEqual([{ done: 0, total: 1 }, undefined, undefined, null])
+})
+
+test('a null with an unreachable overlay changes no result', async ($: any, on: any) => {
+  const { sent, clock } = await setup($, on, { eventsFail: true })
+  await $.tool.call(todos('in_progress'))
+  const ran = await $.tool.call(empty)
+  await flush(clock)
+  expect(ran.deny).toBeUndefined()
+  expect(sent.length).toBe(1)
+})
+
+test('the pane drops "3/7" when the list is cleared', async ($: any, on: any) => {
+  await setup($, on)
+  await $.tool.call(todos('completed', 'pending'))
+  await $.tool.call(empty)
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect((await ui.find({ type: 'Text', text: /Haupt-Agent/ }))?.text).not.toMatch(/\d\/\d/)
+  await ui.unmount()
 })

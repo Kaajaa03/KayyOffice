@@ -3,7 +3,7 @@ import type { AgentRow, PendingRow } from '../types'
 import { PANE_ID, approve, ioFor, shouldForward, type CheckEvent } from './approver'
 import { errorOf, fileOf, makeEvent, type EventName } from './mapping'
 import { sendEvent } from './overlay'
-import { sameProgress, todoProgress } from './progress'
+import { hasTodoList, sameProgress, todoProgress, type Progress } from './progress'
 import { renderPane } from './pane'
 import { autopilotCheck } from './autopilot'
 import { withOrchestrator } from './orchestrator'
@@ -162,11 +162,20 @@ export const register: Register = on => {
     const ran = await next(e).finally(() => (question !== undefined ? quietly(setDecision($, null)) : undefined))
     const message = errorOf(e.tool, ran)
     // TodoWrite: tasks done of all, sent only when it differs from this agent's last one.
-    const todo = e.tool === 'TodoWrite' && message === undefined ? todoProgress(e) : undefined
-    const progress = todo !== undefined && !sameProgress(office.progress.get(row), todo) ? todo : undefined
-    if (progress !== undefined) office.progress.set(row, progress)
+    // A real list with nothing to show (empty, no valid items, over 99) clears a bar sent before: one null.
+    let progress: Progress | null | undefined
+    if (e.tool === 'TodoWrite' && message === undefined) {
+      const todo = todoProgress(e)
+      if (todo !== undefined) {
+        if (!sameProgress(office.progress.get(row), todo)) progress = todo
+      } else if (hasTodoList(e) && office.progress.has(row)) {
+        progress = null
+      }
+    }
+    if (progress === null) office.progress.delete(row)
+    else if (progress !== undefined) office.progress.set(row, progress)
     await emit($, office, 'PostToolUse', e.agentId, { tool: e.tool, file, message, progress, model: modelOf(office, e.agentId) })
-    await quietly(setAgent($, row, { status: 'running', tool: undefined, file: undefined, ...(progress !== undefined ? { progress } : {}) }))
+    await quietly(setAgent($, row, { status: 'running', tool: undefined, file: undefined, ...(progress !== undefined ? { progress: progress ?? undefined } : {}) }))
     return ran
   }).catch(($, e, next) => next(e))
 

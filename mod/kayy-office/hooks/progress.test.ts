@@ -51,3 +51,8 @@ test('current is capped at 80 chars and stripped of control characters', () => {
 test('only the first in_progress item names the current task', () => {
   expect(todoProgress(list([t('in_progress', 'a'), t('in_progress', 'b')]))?.current).toBe('a')
 })
+
+test('control characters incl. U+2028/U+2029 are removed from current', () => {
+  const p = todoProgress(list([t('in_progress', 'a b c\u0085d\u009fe\u0000f\u007fg\nh', undefined)]))
+  expect(p).toEqual({ done: 0, total: 1, current: 'abcdefgh' })
+})

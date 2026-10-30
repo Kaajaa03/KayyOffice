@@ -25,7 +25,8 @@ export type AgentEvent = {
   model?: string
   costUsd?: number
   file?: string
-  progress?: Progress
+  /** null clears the agent's bar in the overlay. */
+  progress?: Progress | null
 }
 
 /** Who and where an event happened: the fields every event carries. */
@@ -84,7 +85,7 @@ export const makeEvent = (
     model?: string
     costUsd?: number
     file?: string
-    progress?: Progress
+    progress?: Progress | null
   } = {},
 ): AgentEvent => {
   const out: AgentEvent = {
