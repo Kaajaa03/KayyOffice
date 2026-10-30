@@ -1,80 +1,85 @@
 # Kayy Office
 
-Pixel-Büro-Overlay für **Claude-Code-Agents** unter Windows (inspiriert von Lumio für Mac). Jeder Agent bekommt einen Schreibtisch: er tippt, wenn er arbeitet, steht auf, wenn er dich braucht, und holt sich Kaffee, wenn er fertig ist. Permissions kannst du direkt im Overlay freigeben.
+Pixel-Büro für **Claude-Code-Agents** unter Windows. Jeder Agent sitzt in einem gemeinsamen Büro: Wer arbeitet, tippt am Schreibtisch, wer dich braucht, steht auf, wer fertig ist, holt sich Kaffee. Freigaben, Fortschritt, Modell und Kosten siehst du auf einen Blick, auch wenn Claude im Hintergrund läuft.
 
-**Lokal, ohne Tokens:** Claude-Code-Hooks rufen ein winziges Node-Script, das Events an `127.0.0.1` schickt. Kein LLM-Aufruf, kein Polling, keine Telemetrie, kein Hosting.
+**Lokal und tokenfrei:** kein LLM-Aufruf, kein Polling, keine Telemetrie, kein Hosting. Alles läuft über `127.0.0.1`.
 
+![Büro mit mehreren Agents](docs/screenshots/office-progress.png)
+
+## Schnellstart
+```bash
+npm install
+npm start          # baut und startet die App (Tray-Icon unten rechts)
 ```
-Claude Code Hook ─► hook.js ─HTTP─► 127.0.0.1:47821 ─► Electron (Main) ─IPC─► Canvas-Büro
-```
+Beim ersten Start öffnet sich ein **Willkommensfenster** mit Status, „Hooks installieren“ und einer **Demo** (15 s). Das Büro erscheint oben mittig, sobald Agents arbeiten. **Strg+Alt+O** blendet es ein und aus. Voraussetzung: Node.js im PATH (für Hooks). Installer: `npm run dist` erzeugt `release/Kayy Office Setup <Version>.exe` und eine Portable-Version.
 
 ## Zwei Wege, Agents anzuschließen
 | Weg | Was du bekommst |
 |---|---|
-| **Claude-Mod `kayy-office`** (empfohlen) | Status, **Modell pro Agent**, **Kosten**, aktuelle Datei, Router (Subagent → passendes Modell), Freigaben, Pane direkt in der Claude-App |
-| **Hooks** (Tray → „Hooks installieren“) | Status, aktuelle Datei, Freigaben. Läuft auch mit der CLI ohne Mod |
+| **Claude-Mod `kayy-office`** (empfohlen) | Status, Modell pro Agent, Kosten, Datei, **Fortschritt der Aufgabenliste**, Router, Freigaben, Pane in der Claude-App, Autopilot und Orchestrierungs-Richtlinie |
+| **Hooks** (Tray → „Hooks installieren“) | Status, Datei, Fortschritt, Freigaben; funktioniert auch mit der CLI ohne Mod |
 
-**Mod nutzen:** Der Quellcode liegt in `mod/kayy-office/`. Entwicklungsmodus:
+Beides gleichzeitig ist erlaubt: Meldet der Mod für eine Session, ignoriert das Overlay die Hook-Events derselben Session (keine Doppelzählung, keine Doppelkarten).
+
+**Mod installieren (lokal):**
 ```bash
-claude --plugin-dir "C:\Users\<du>\IdeaProjects\KayyOffice\mod\kayy-office"
+claude plugin marketplace add C:\Users\<du>\IdeaProjects\KayyOffice
+claude plugin install kayy-office@kayy
 ```
-Danach in Claude `/office` (Pane + Status) und `/router status`. Wichtig: den alten Mod `kayy-router` **nicht** parallel laden, der neue enthält den Router. Die App muss laufen (der Mod liest `%APPDATA%\KayyOffice\config.json`); ist sie aus, tut der Mod still nichts.
+Danach in einer neuen Sitzung `/office` (Pane und Status). Entfernen: `claude plugin uninstall kayy-office@kayy`. Den alten Mod `kayy-router` nicht parallel laden, der neue enthält den Router. Ohne laufende App tut der Mod still nichts. Details: [mod/kayy-office/README.md](mod/kayy-office/README.md).
 
-**Sicherheit:** Anfragen an die App sind signiert (HMAC mit Nonce), der Token geht nie über den Draht; Freigabe-Antworten gelten nur mit passendem Beweis. Der Mod gibt nie etwas frei, was Claude selbst verweigert, und ExitPlanMode/AskUserQuestion beantwortet das Overlay nie.
+## Im Büro
+- **Namensschild:** Status-Punkt, Name, Modell-Chip (**H**aiku, **S**onnet, **O**pus, **F**able), darunter die aktuelle Aufgabe oder Datei. Ein goldener Balken zeigt den **Fortschritt** der Aufgabenliste (`TodoWrite`).
+- **Zustände:** *arbeitet* (Bildschirm zeigt Code, Terminal oder Browser), *braucht dich* (steht auf, „!“), *Entscheidung* (Claude hat dir eine echte Frage gestellt), *fertig* (Kaffee, dann Lounge), *Fehler* (roter Bildschirm, ausgelöst durch `PostToolUseFailure`), *ruht*.
+- **Licht:** Tageszeit und Sonnenstand folgen der echten Zeit, nachts leuchten Lampen und Bildschirme. Fußzeile: Anzahl, aktiv, wartend, Session-Kosten.
+- **Sprache:** Deutsch oder Englisch (Tray → „Sprache“), Standard nach System. **Reduzierte Bewegung** (Windows-Einstellung) wird respektiert.
 
-Beides gleichzeitig ist erlaubt: sobald der Mod für eine Session meldet, ignoriert das Overlay die Hook-Events derselben Session (keine Doppelzählung).
+## Freigaben
+Das Overlay zeigt eine Karte mit **Erlauben / Ablehnen**, wenn Claude etwas freigeben lassen will (Tray → „Freigabe-Karten“):
 
-## Erster Start
-Beim ersten Start öffnet sich ein **Willkommensfenster** (später: Tray → „Willkommen / Hilfe“) mit drei Schritten: Verbinden, **Demo ansehen** (15 s), Bedienung. Das Büro selbst erscheint erst, wenn Agents arbeiten; nach dem Start zeigt eine kleine Pille oben kurz „läuft · wartet auf Agents“.
+| Modus | Verhalten |
+|---|---|
+| **Nur bei riskanten Befehlen** (Standard) | Karte nur bei `rm -rf`, `Remove-Item -Recurse`, `git reset --hard`, `git push --force`, `git clean -f`, `curl … \| bash`, `DROP TABLE`, `format X:` und sensiblen Dateien. Rote Warnzeile mit Ziel, Erlauben erst nach 1,5 s klickbar |
+| Bei jeder Rückfrage | jede Anfrage |
+| Nie | immer Claudes normaler Dialog |
 
-## Am Schreibtisch
-Farbiger Chip = Modell (**H**aiku, **S**onnet, **O**pus, **F**able), darunter Name und Status; bei Edit/Write steht der **Dateiname** da. Fußzeile: Anzahl, aktiv, wartend, Session-Kosten.
+Keine Antwort in 20 s, App aus oder Fehler ⇒ ganz normaler Claude-Dialog. `ExitPlanMode` und `AskUserQuestion` beantwortet das Overlay nie. Die Karte nennt Rolle/Projekt, Agent-Typ und bei Verwechslungsgefahr ein Session-Kürzel. Die Rückfragen **pro Datei** kommen von Claudes eigenem Berechtigungssystem und lassen sich nur dort ändern (Auto-accept edits oder eine `Edit(...)`-Regel in deinen Einstellungen).
 
-## Blast Radius (Freigabe-Karte)
-Bei gefährlichen Befehlen (`rm -rf`, `Remove-Item -Recurse`, `git reset --hard`, `git push --force`, `git clean -f`, `curl … | bash`, `DROP TABLE`, `format X:`) zeigt die Karte eine rote Warnzeile mit Ziel und der Allow-Knopf wird erst nach 1,5 s klickbar. Rein lokal, kein LLM.
-
-## Ressourcen (gemessen mit `npm run perf`)
-| | CPU | RAM (private, alle Prozesse) |
-|---|---|---|
-| Idle | ~0,04 % | ~80 MB |
-| 5 Agents aktiv (60 fps) | ~0,9 % | ~96 MB |
-
-Gespart wird durch: Event-getriebenes Rendering (ohne aktive Agents läuft keine Animations-Schleife), Software-Rendering + In-Process-GPU (halbiert den RAM), kein Timer im Leerlauf. `KAYY_GFX=hw` schaltet auf GPU-Rendering um.
-
-## Benutzung
-```bash
-npm install
-npm start            # Build + App starten (Tray-Icon unten rechts)
-```
-Tray-Menü: **Hooks installieren** (trägt Hooks nicht-destruktiv in `~/.claude/settings.json` ein, mit Backup), **Hooks entfernen**, Dev-Log/Wochen-Recap, Rollen, Wach-bleiben, Autostart (nur installierte Version).
-Hotkey **Ctrl+Alt+O** blendet das Overlay ein/aus. Neue Claude-Code-Sessions nutzen die Hooks automatisch. Voraussetzung: `node` im PATH.
-Registrierte Hooks: `SessionStart`, `PreToolUse`, `PostToolUse`, `PostToolUseFailure` (fehlgeschlagenes Tool ⇒ roter Zustand, nie der Fehlertext), `Notification`, `Stop`, `SubagentStart`, `SubagentStop`, `SessionEnd` und `PermissionRequest` (blockierend, 25 s Hook-Timeout). Schreibzugriffe auf `settings.json` sind atomar; je Datei bleiben die 5 neuesten Backups (`.kayy-backup-*`).
+## Orchestrator (im Mod)
+- **Autopilot** `/office autopilot on|off|status` (Standard **aus**): gibt nur Routine ohne Rückfrage frei, nämlich Lesen und Schreiben im Projektordner sowie eine enge Liste von Shell-Befehlen. Nie ein „Nein“ von Claude, nie Pläne, Fragen, MCP oder Web. Nur für eigene, vertrauenswürdige Projekte.
+- **Orchestrierungs-Richtlinie** `/office orchestrator on|off` (Standard **an**): ein kurzer System-Prompt-Abschnitt, der Claude zum Delegieren an `kayy-scout` (Haiku), `kayy-coder` (Sonnet) und `kayy-architect` (Opus) anhält und dich nur bei Unumkehrbarem, Richtung oder Kosten fragen lässt.
+- **Entscheidungs-Signal:** stellt Claude eine echte Frage, steht der Agent auf und zeigt „Entscheidung“.
+- **Router** `/router status|on|off`: wählt für Subagents das passende Modell.
 
 ## Rollen und Projekte
-`%APPDATA%\KayyOffice\roles.json` (wird beim ersten Start mit Beispielen angelegt, Tray → „Rollen neu laden“):
+`%APPDATA%\KayyOffice\roles.json` (beim ersten Start mit Beispielen angelegt, Tray → „Rollen neu laden“):
 ```json
 [{ "match": { "namePattern": "review" }, "role": "Reviewer", "color": "#ffa94d" }]
 ```
-`namePattern` (Regex) trifft auf Agent-ID und Subagent-Typ, `cwdContains` auf den Arbeitsordner. Erster Treffer gewinnt. Agents desselben Projekts (letzter Ordner von `cwd`) sitzen zusammen in einem Raum.
-
-## Permissions im Overlay
-Der `PermissionRequest`-Hook fragt die App. Klick auf **Allow/Deny** entscheidet. Keine Antwort in 20 s, App aus oder Fehler ⇒ ganz normaler Claude-Code-Prompt.
+`namePattern` (Regex) trifft auf Agent-ID und Subagent-Typ, `cwdContains` auf den Arbeitsordner; der erste Treffer gewinnt, Farben nur als `#rrggbb`. Agents desselben Projekts sitzen zusammen.
 
 ## Dev-Log
-Events werden pro Tag als JSONL unter `%APPDATA%\KayyOffice\logs` gesammelt (ohne LLM), Dateien älter als 30 Tage werden beim Start gelöscht. Tray → „Dev-Log (heute) öffnen“ erzeugt Markdown, Zielordner per `devLogDir` in `config.json` einstellbar (z. B. Obsidian-Vault).
+Events werden pro Tag als JSONL unter `%APPDATA%\KayyOffice\logs` gesammelt (ohne Nachrichtentext, ohne Aufgabentexte; Dateien älter als 30 Tage werden beim Start gelöscht). Tray → „Dev-Log (heute)“ und „Wochen-Recap“ erzeugen Markdown mit Tool-Calls, aktiver Zeit, erledigten Aufgaben und Dateien. Zielordner per `devLogDir` in `config.json` (z. B. Obsidian-Vault); Dateinamen `kayy-devlog-<Datum>.md`, damit nie eine eigene Notiz überschrieben wird.
+
+## Ressourcen (`npm run perf`)
+| | CPU | RAM (privat, alle Prozesse) |
+|---|---|---|
+| Leerlauf | ~0,01 % | ~90 MB |
+| 5 Agents aktiv | ~0,8 % | ~98 MB |
+
+Möglich durch event-getriebenes Rendering (ohne Aktivität keine Animationsschleife, kein Dauer-Timer), einmal gezeichneten Raum im Cache und Software-Rendering mit In-Process-GPU. `KAYY_GFX=hw` schaltet auf GPU-Rendering.
+
+## Sicherheit und Diagnose
+Anfragen an die App sind signiert, der Token geht nie über den Draht; Details in [docs/SECURITY.md](docs/SECURITY.md). Aufbau und Protokoll: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Fehler der App landen als einzeilige Meldungen (ohne Tokens, Befehle, Tool-Ausgaben) in `%APPDATA%\KayyOffice\app.log` (Tray → „Diagnose-Log anzeigen“, max. 256 KB plus `app.log.1`).
 
 ## Entwicklung
 ```bash
-npm test             # Vitest
-npm run typecheck
+npm run check        # Typecheck (strikt, inkl. ungenutzter Variablen) + alle Tests
 npm run mock -- team # Fake-Events (single | team | permission | error | cleanup)
-npm run perf         # Idle-Abnahme (PASS/FAIL); "-- active" für Last
+npm run perf         # Leerlauf-Abnahme (PASS/FAIL); "-- active" für Last
 npm run dist         # Installer + Portable nach release/
 ```
-Demo ohne Agents: `electron . --demo` (optional `--screenshot=out.png`).
+Debug-Flags: `--demo`, `--demo-count=<n>`, `--screenshot=<png>`, `--hour=<0-23>`, `--no-card`, `--welcome`, `--no-welcome`. Mod-Tests: `claude plugin test mod/kayy-office`. CI: GitHub Actions (`.github/workflows/ci.yml`).
 
 ## Roadmap
-Orchestrator-Mod (Chats sprechen miteinander, mit Turn-Limit), weitere Tools (Codex, Cursor) als Adapter, Tauri-Portierung für noch weniger RAM, Antworten aus dem Overlay.
-
-## Diagnose
-`%APPDATA%\KayyOffice\app.log` (Tray → Diagnose-Log anzeigen): einzeilige Meldungen zu Fehlern der App, max. 256 KB plus `app.log.1`; keine Tokens, Befehle oder Tool-Ausgaben. Der lokale Server akzeptiert nur Anfragen mit `Host: 127.0.0.1:<Port>` bzw. `localhost:<Port>` (Schutz gegen DNS-Rebinding).
+Weitere Tools (Codex, Cursor) als Adapter, Tauri-Portierung für noch weniger RAM. Bewusst nicht geplant: Chat-zu-Chat-Nachrichten (Endlos-Ping-Pong-Risiko), Telemetrie, Auto-Update.
