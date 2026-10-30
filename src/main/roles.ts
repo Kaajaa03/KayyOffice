@@ -1,4 +1,5 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { appLog } from './diag';
 import { projectOf } from '../shared/project';
 import type { Agent, AppState } from '../shared/types';
 
@@ -52,7 +53,8 @@ export function loadRoles(path: string): RoleDef[] {
     const roles = Array.isArray(parsed) ? parsed.filter(valid) : [];
     roles.forEach(patternOf); // compile once, up front
     return roles;
-  } catch {
+  } catch (e) {
+    appLog('warn', 'roles: roles.json unreadable, no roles applied', e);
     return [];
   }
 }

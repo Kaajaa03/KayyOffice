@@ -7,9 +7,11 @@ import { join } from 'node:path';
 import { loadConfig, saveConfigPort, updateConfig } from './config';
 import { DEFAULT_APPROVAL_MODE, parseApprovalMode, shouldShowCard } from './approvals';
 import type { ApprovalMode } from './approvals';
+import { resetClickThrough, resetClickThroughWhenIdle } from './clickthrough';
 import { PermissionQueue } from './control';
 import { demoState } from './demo';
-import { EventLog, localDate, writeDevLog, writeWeekLog } from './log';
+import { appLog, appLogPath, initDiag } from './diag';
+import { EventLog, localDate, pruneLogs, writeDevLog, writeWeekLog } from './log';
 import { installHooks, stageHook, uninstallHooks } from './installer';
 import { runPerf } from './perf';
 import { AwakeManager } from './power';
@@ -17,11 +19,10 @@ import { applyRoles, ensureDefaultRoles, loadRoles } from './roles';
 import type { RoleDef } from './roles';
 import { startServer } from './server';
 import { SourceGate } from './source';
-import { initialState, pruneStale, reduce, tick } from './state';
+import { initialState, nextDueMs, pruneStale, reduce, STALE_MS, tick } from './state';
 import { createOverlay, createWelcome, toggleOverlay } from './window';
 import type { AppState } from '../shared/types';
 
-const STALE_MS = 15 * 60 * 1000;
 const PUBLISH_MIN_MS = 50;
 const HINT_MS = 9000;
 const DEMO_MS = 15000;
@@ -40,7 +41,7 @@ let welcomeWin: BrowserWindow | null = null;
 let tray: Tray;
 let publishTimer: NodeJS.Timeout | null = null;
 let publishDirty = false;
-let housekeeping: NodeJS.Timeout | null = null;
+let housekeeping: NodeJS.Timeout | null = null; // one-shot, armed for the next due moment only
 const gate = new SourceGate();
 
 const awake = new AwakeManager({
@@ -49,7 +50,10 @@ const awake = new AwakeManager({
 });
 
 const queue = new PermissionQueue({
-  onChange: () => { if (win && !win.isDestroyed()) win.webContents.send('permissions', queue.pending()); },
+  onChange: () => {
+    if (win && !win.isDestroyed()) win.webContents.send('permissions', queue.pending());
+    resetClickThroughWhenIdle(win, queue.pending().length);
+  },
 });
 
 function showOverlay(): void {
@@ -97,15 +101,19 @@ function startDemo(ms: number | null): void {
   if (ms) demoTimer = setTimeout(() => { demo = null; demoTimer = null; publish(); }, ms);
 }
 
+/** Arms a single timer for the next moment tick/pruneStale have work; no timer when nothing is due. */
 function syncHousekeeping(): void {
-  const hasAgents = Object.keys(state.agents).length > 0;
-  if (hasAgents && !housekeeping) {
-    housekeeping = setInterval(() => {
-      const next = pruneStale(tick(state, Date.now()), Date.now(), STALE_MS);
-      if (next !== state) { state = next; publish(); }
-      if (!Object.keys(state.agents).length && housekeeping) { clearInterval(housekeeping); housekeeping = null; }
-    }, 5000);
-  }
+  if (housekeeping) clearTimeout(housekeeping);
+  housekeeping = null;
+  const delay = nextDueMs(state, Date.now());
+  if (delay === null) return;
+  housekeeping = setTimeout(() => {
+    housekeeping = null;
+    const now = Date.now();
+    const next = pruneStale(tick(state, now), now, STALE_MS);
+    if (next !== state) { state = next; publish(); }
+    syncHousekeeping();
+  }, delay);
 }
 
 function trayIcon() {
@@ -140,6 +148,7 @@ function installHooksAction(): { ok: boolean; text: string } {
         (noNode ? '\n\nACHTUNG: "node" wurde nicht im PATH gefunden. Die Hooks brauchen Node.js, sonst melden sie Fehler.' : ''),
     };
   } catch (e) {
+    appLog('error', 'installer: install failed', e);
     return { ok: false, text: (e as Error).message };
   }
 }
@@ -177,13 +186,14 @@ function buildTray(): void {
       label: 'Hooks entfernen',
       click: async () => {
         try { uninstallHooks(settingsPath()); await toast('Hooks entfernt.'); }
-        catch (e) { await toast((e as Error).message, 'error'); }
+        catch (e) { appLog('error', 'installer: uninstall failed', e); await toast((e as Error).message, 'error'); }
       },
     },
     { type: 'separator' },
     { label: 'Dev-Log (heute) öffnen', click: () => void openRecap(false) },
     { label: 'Wochen-Recap öffnen', click: () => void openRecap(true) },
     { label: 'Rollen-Datei öffnen (roles.json)', click: () => void shell.openPath(rolesPath) },
+    { label: 'Diagnose-Log anzeigen', click: () => { const p = appLogPath(); if (p) shell.showItemInFolder(p); } },
     { label: 'Rollen neu laden', click: () => { roles = loadRoles(rolesPath); publish(); } },
     { type: 'separator' },
     {
@@ -224,12 +234,14 @@ async function main(): Promise<void> {
   await app.whenReady();
 
   const configDir = join(app.getPath('appData'), 'KayyOffice');
+  initDiag(configDir);
   const config = loadConfig(configDir);
   configDirPath = configDir;
   approvalMode = parseApprovalMode(config.approvals);
   // keep an already staged hook in sync with this app version (protocol changes must not silently break it)
-  try { if (existsSync(join(configDir, 'hook.js'))) stageHook(hookPath(), configDir); } catch { /* best effort */ }
+  try { if (existsSync(join(configDir, 'hook.js'))) stageHook(hookPath(), configDir); } catch (e) { appLog('warn', 'main: could not refresh staged hook.js', e); }
   eventLog = new EventLog(join(configDir, 'logs'));
+  pruneLogs(join(configDir, 'logs'), localDate(Date.now()));
   devLogDir = config.devLogDir || join(configDir, 'devlog');
   app.on('before-quit', () => eventLog.flush());
   rolesPath = join(configDir, 'roles.json');
@@ -237,11 +249,16 @@ async function main(): Promise<void> {
   roles = loadRoles(rolesPath);
   win = createOverlay();
   win.webContents.on('did-finish-load', () => {
+    resetClickThrough(win);
     win.webContents.send('visibility', true);
     win.webContents.send('state', applyRoles(view(), roles));
     win.webContents.send('permissions', queue.pending());
     win.webContents.send('hint', 'Kayy Office läuft · wartet auf Agents · Strg+Alt+O');
     setTimeout(() => { if (!win.isDestroyed()) win.webContents.send('hint', null); }, HINT_MS);
+  });
+  win.webContents.on('render-process-gone', (_e, details) => {
+    appLog('error', `overlay: renderer gone (${details.reason})`);
+    resetClickThrough(win);
   });
   // a second launch (double click) must not look like "nothing happened"
   app.on('second-instance', () => { showOverlay(); openWelcome(); });
@@ -254,7 +271,7 @@ async function main(): Promise<void> {
     const info = queue.pending().find((p) => p.id === id);
     if (!info || !queue.resolve(id, decision)) return;
     const a = state.agents[info.agentId];
-    if (a) { state = reduce(state, { ts: Date.now(), sessionId: a.sessionId, agentId: a.id, event: 'PreToolUse', tool: info.tool, cwd: a.cwd }); publish(); }
+    if (a) { state = reduce(state, { ts: Date.now(), sessionId: a.sessionId, agentId: a.id, event: 'PreToolUse', tool: info.tool, cwd: a.cwd }); syncHousekeeping(); publish(); }
   });
   ipcMain.handle('action', async (e, name: unknown) => {
     if (!welcomeWin || e.sender !== welcomeWin.webContents) return '';
@@ -315,4 +332,8 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((e) => { console.error(e); app.quit(); });
+// Non-fatal by design: a stray rejection in a tray app must be logged, not kill the overlay.
+process.on('uncaughtException', (e) => appLog('error', 'uncaughtException', e));
+process.on('unhandledRejection', (e) => appLog('error', 'unhandledRejection', e));
+
+main().catch((e) => { appLog('error', 'main: startup failed', e); console.error(e); app.quit(); });

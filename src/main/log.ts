@@ -1,5 +1,6 @@
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { appLog } from './diag';
 import { projectOf } from '../shared/project';
 import { toolCategory } from '../shared/types';
 import type { AgentEvent } from '../shared/types';
@@ -41,8 +42,12 @@ export class EventLog {
     if (this.timer) clearTimeout(this.timer);
     this.timer = null;
     if (!this.dir || !this.buffer.size) return;
-    mkdirSync(this.dir, { recursive: true });
-    for (const [date, lines] of this.buffer) appendFileSync(join(this.dir, `${date}.jsonl`), lines.join('\n') + '\n');
+    try {
+      mkdirSync(this.dir, { recursive: true });
+      for (const [date, lines] of this.buffer) appendFileSync(join(this.dir, `${date}.jsonl`), lines.join('\n') + '\n');
+    } catch (e) {
+      appLog('warn', 'log: could not write event log', e); // a full disk must not crash the overlay
+    }
     this.buffer.clear();
   }
 

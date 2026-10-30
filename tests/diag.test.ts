@@ -58,3 +58,21 @@ describe('appLog', () => {
     expect(() => appLog('error', 'circular', { get message(): string { throw new Error('getter'); } })).not.toThrow();
   });
 });
+
+describe('silent failures now leave a trace', () => {
+  it('a corrupt config.json is regenerated and noted in app.log', async () => {
+    const { loadConfig } = await import('../src/main/config');
+    writeFileSync(join(dir, 'config.json'), '{ not json');
+    const c = loadConfig(dir);
+    expect(c.token).toMatch(/^[0-9a-f]{64}$/);
+    const text = readFileSync(logFile(), 'utf8');
+    expect(text).toContain('config: config.json unreadable');
+    expect(text).not.toContain(c.token);
+  });
+  it('a broken roles.json is noted in app.log', async () => {
+    const { loadRoles } = await import('../src/main/roles');
+    writeFileSync(join(dir, 'roles.json'), '{oops');
+    expect(loadRoles(join(dir, 'roles.json'))).toEqual([]);
+    expect(readFileSync(logFile(), 'utf8')).toContain('roles: roles.json unreadable');
+  });
+});

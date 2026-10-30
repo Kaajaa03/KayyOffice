@@ -9,6 +9,7 @@
     "start": "npm run build && electron .",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
+    "check": "tsc --noEmit && vitest run",
     "mock": "tsx tools/mock-events.ts",
     "perf": "tsx tools/perf-check.ts",
     "dist": "npm run build && electron-builder"

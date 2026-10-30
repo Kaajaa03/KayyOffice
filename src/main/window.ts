@@ -1,5 +1,6 @@
 import { BrowserWindow, screen } from 'electron';
 import { join } from 'node:path';
+import { resetClickThrough } from './clickthrough';
 
 export const OVERLAY_W = 900;
 export const OVERLAY_H = 400;
@@ -61,6 +62,7 @@ export function toggleOverlay(win: BrowserWindow): void {
   if (win.isVisible()) {
     win.webContents.send('visibility', false);
     win.hide();
+    resetClickThrough(win); // a hidden overlay must never keep swallowing clicks
   } else {
     win.showInactive();
     win.webContents.send('visibility', true);

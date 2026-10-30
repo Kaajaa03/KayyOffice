@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { appLog } from './diag';
 import { writeFileAtomic } from './fsutil';
 
 export interface Config {
@@ -22,8 +23,8 @@ export function loadConfig(dir: string): Config {
       if (typeof c.token === 'string' && c.token.length >= 32) {
         return { ...c, token: c.token, port: typeof c.port === 'number' ? c.port : DEFAULT_PORT };
       }
-    } catch {
-      /* fall through: regenerate */
+    } catch (e) {
+      appLog('warn', 'config: config.json unreadable, generating a new one', e);
     }
   }
   mkdirSync(dir, { recursive: true });
