@@ -43,3 +43,22 @@ describe('SourceGate', () => {
     expect(g.acceptPermission({ sessionId: 'a' })).toBe(true);
   });
 });
+
+describe('SourceGate.modActive', () => {
+  it('is true only while a mod event or request was seen within 5 minutes', () => {
+    let now = 0;
+    const g = new SourceGate(() => now);
+    expect(g.modActive()).toBe(false);
+    g.acceptEvent(ev('a'));
+    expect(g.modActive()).toBe(false); // hook events do not count
+    g.acceptEvent(ev('a', 'mod'));
+    expect(g.modActive()).toBe(true);
+    now = 5 * 60_000 + 1;
+    expect(g.modActive()).toBe(false);
+  });
+  it('a mod permission request counts as well', () => {
+    const g = new SourceGate();
+    g.acceptPermission({ sessionId: 'x', source: 'mod' });
+    expect(g.modActive()).toBe(true);
+  });
+});

@@ -33,8 +33,10 @@ interface KayyApi {
   onPermissions(cb: (p: PermissionRequestInfo[]) => void): void;
   setInteractive(v: boolean): void;
   decide(id: string, decision: 'allow' | 'deny'): void;
-  dragBy(dx: number, dy: number): void;
+  dragStart(): void;
+  dragMove(): void;
   dragEnd(): void;
+  stepScale(dir: 1 | -1): void;
 }
 const kayy = (window as unknown as { kayy: KayyApi }).kayy;
 
@@ -347,21 +349,18 @@ const hitAt = (x: number, y: number): Hit | null =>
 const overHeader = (x: number, y: number): boolean =>
   header !== null && y >= 0 && y < HEADER_H && x >= header.x && x <= header.x + header.w;
 
-// Dragging the title strip moves the window (main clamps it to the displays and remembers the spot).
-let drag: { x: number; y: number } | null = null;
+// Dragging the title strip moves the window: main follows the real cursor (exact at any page zoom),
+// clamps it to the displays and remembers the spot.
+let drag = false;
 function endDrag(): void {
   if (!drag) return;
-  drag = null;
+  drag = false;
   kayy.dragEnd();
 }
 
 window.addEventListener('mousemove', (e) => {
   if (drag && e.buttons === 0) endDrag(); // the button was released outside the window
-  if (drag) {
-    kayy.dragBy(e.screenX - drag.x, e.screenY - drag.y);
-    drag = { x: e.screenX, y: e.screenY };
-    return;
-  }
+  if (drag) { kayy.dragMove(); return; }
   const h = hitAt(e.clientX, e.clientY);
   const grab = h === null && overHeader(e.clientX, e.clientY);
   const want = h !== null || grab;
@@ -371,7 +370,7 @@ window.addEventListener('mousemove', (e) => {
 });
 window.addEventListener('mousedown', (e) => {
   const h = hitAt(e.clientX, e.clientY);
-  if (h === null && e.button === 0 && overHeader(e.clientX, e.clientY)) { drag = { x: e.screenX, y: e.screenY }; return; }
+  if (h === null && e.button === 0 && overHeader(e.clientX, e.clientY)) { drag = true; kayy.dragStart(); return; }
   guard.down(h, performance.now());
 });
 window.addEventListener('mouseup', (e) => {
@@ -379,6 +378,17 @@ window.addEventListener('mouseup', (e) => {
   const h = guard.up(hitAt(e.clientX, e.clientY), performance.now());
   if (h) kayy.decide(h.id, h.decision);
 });
+
+// Ctrl + wheel over the title strip: one size step per notch (throttled, each step resizes the window)
+let lastStep = 0;
+window.addEventListener('wheel', (e) => {
+  if (!e.ctrlKey || !overHeader(e.clientX, e.clientY)) return;
+  e.preventDefault();
+  const now = performance.now();
+  if (e.deltaY === 0 || now - lastStep < 150) return;
+  lastStep = now;
+  kayy.stepScale(e.deltaY < 0 ? 1 : -1);
+}, { passive: false });
 
 kayy.onState((s) => { state = s; wake(); safeDraw(performance.now()); });
 kayy.onPermissions((p) => {
@@ -392,7 +402,7 @@ kayy.onLanguage((l) => { lang = l; wake(); safeDraw(performance.now()); });
 motionQuery.addEventListener('change', (e) => { reduced = e.matches; wake(); safeDraw(performance.now()); });
 kayy.onVisibility((v) => {
   visible = v;
-  if (!v) { sync.reset(); hover = null; drag = null; } // main resets click-through on hide; forget our belief too
+  if (!v) { sync.reset(); hover = null; drag = false; } // main resets click-through on hide; forget our belief too
   else wake();
 });
 window.addEventListener('resize', () => { resize(); staticKey = ''; draw(performance.now()); });

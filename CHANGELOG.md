@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.2.0 – 2026-10-30
+Größe und Einstellungen.
+- **Größe:** fünf Stufen (67, 100, 133, 167, 200 %), jeweils ganze Pixel für die Pixel-Kunst; Fenstergröße plus Seitenzoom, Mitte und Oberkante bleiben beim Wechsel, auf kleinen Bildschirmen automatisch begrenzt. Strg + Mausrad über der Titelleiste.
+- **Transparenz:** 50 bis 100 % in 5-%-Schritten (gilt auch für die Freigabe-Karte).
+- **Einstellungsfenster** (Tray-Menü oder Doppelklick auf das Tray-Icon): Sprache, Größe, Transparenz, Position, Freigaben, Verbindungsstatus (Hooks, Claude-Mod, Port) mit Installieren/Entfernen direkt im Fenster, Autostart, Wach bleiben, Werkzeuge. Alles wirkt sofort.
+- **Tray vereinfacht:** Anzeigen/Verstecken, Einstellungen…, Demo zeigen, Beenden.
+- **Willkommensfenster:** Sprachumschalter und Knopf „Einstellungen öffnen“.
+- Fehlertexte in Klartext (Details im Diagnose-Log); `roles.json` wird nach dem Speichern automatisch neu geladen.
+- Ziehen der Titelleiste folgt dem echten Mauszeiger (exakt bei jeder Größe). Debug-Flags `--settings`, `--scale`, `--lang`, `--config-dir`.
+
 ## 1.1.0 – 2026-10-30
 Effizienz und Bedienung.
 - **Büro verschiebbar:** Titelleiste ziehen oder feste Plätze im Tray; Position wird gemerkt und nach Monitor-Wechsel zurück auf einen Bildschirm geholt.

@@ -17,6 +17,12 @@ export interface Config {
   position?: { x: number; y: number };
   /** The tray preset the position came from, so the menu can show it checked; absent after a free drag. */
   placement?: string;
+  /** Overlay size step (see scale.ts: 0.67, 1, 1.33, 1.67, 2); absent = 1. */
+  scale?: number;
+  /** Overlay opacity 0.5-1 (see opacity.ts); absent = 1. */
+  opacity?: number;
+  /** Keep the PC awake while agents work; absent = on. */
+  awake?: boolean;
   /** 'asked' once the user was told that hooks are redundant while the Claude mod reports. */
   hooksAdvice?: string;
 }

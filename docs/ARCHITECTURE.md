@@ -16,14 +16,20 @@ Freigaben:  Hook/Mod ──POST /permission (blockierend)──► PermissionQue
 | Zustand | `src/main/state.ts` | reiner Reducer `reduce(state, event)`, `tick`, `nextDueMs`, `pruneStale` |
 | Quellen-Vorrang | `src/main/source.ts` | Mod vor Hook je Session |
 | Freigaben | `control.ts`, `approvals.ts`, `src/shared/risk.ts` | Warteschlange (20 s), Modus, Blast-Radius-Heuristik |
-| Overlay | `window.ts`, `clickthrough.ts` | transparentes, klickdurchlässiges Fenster, Reset bei Hide/Reload/Crash |
+| Overlay | `window.ts`, `clickthrough.ts` | transparentes, klickdurchlässiges Fenster, Reset bei Hide/Reload/Crash; Tray nur Anzeigen/Einstellungen/Demo/Beenden |
 | Renderer | `src/renderer/*` | Raum einmal in Offscreen-Cache, nur Figuren/Bildschirme animiert, `animationMode` bestimmt 60/10 fps oder Stillstand |
 | Log | `log.ts`, `diag.ts` | JSONL pro Tag (ohne Texte), Dev-Log, `app.log` mit Rotation |
-| Konfiguration | `config.ts`, `roles.ts`, `fsutil.ts` | atomare Writes, Rollen-Regeln |
+| Konfiguration | `config.ts`, `roles.ts`, `fsutil.ts` | atomare Writes, Rollen-Regeln (`roles.json` wird per `fs.watch` neu geladen, kein Timer) |
+| Größe | `scale.ts` | reine Funktionen: Stufen 0,67/1/1,33/1,67/2 (ganze Pixel pro 3-px-Einheit), `parseScale`, `stepScale`, `fitScale` (größte Stufe, die auf die Arbeitsfläche passt), `rescaleBounds` (Mitte und Oberkante bleiben, dann `clampToWorkAreas`) |
+| Transparenz | `opacity.ts` | `parseOpacity`/`clampOpacity`, 0,5 bis 1 in 0,05-Schritten |
+| Einstellungen | `settings.ts`, `src/renderer/settings.*` | `SettingsModel` (Snapshot + Whitelist-Setter mit Validierung, alle Nebenwirkungen injiziert, ohne Electron testbar); Fenster mit echten Labels/Inputs, IPC `settings:get`/`settings:set`/`settings:action` (Absender muss das Einstellungsfenster sein), Push `settings:changed` |
 | Mod | `mod/kayy-office/` | Router, Approver, Autopilot, Orchestrator, Pane, Event-Brücke |
 
 ## Zustandsmaschine eines Agents
 `SessionStart → idle` · `PreToolUse → working` · `PostToolUse → working` (mit `ERROR:`-Präfix → `error`) · `Notification → waiting` · `Stop → done` (nach 15 s `idle`) · `SubagentStart → working`, `SubagentStop → done` (Platz frei nach 20 s) · `SessionEnd` entfernt Session und Subagents. Ruhende Agents werden nach 15 min entfernt, wartende nach 2 h. Zeitgesteuerte Übergänge löst **ein** Timer aus, der auf `nextDueMs` gesetzt wird; ohne fällige Aktion läuft kein Timer.
+
+## Größe, Zoom und Ziehen
+Fenstergröße = Basisgröße (900 × 460, begrenzt durch die Arbeitsfläche) × Stufe; dazu `webContents.setZoomFactor(Stufe)` nach jedem `did-finish-load` und bei jeder Änderung. Der Renderer rechnet weiter in CSS-Pixeln (`innerWidth` bleibt die Basisbreite), `devicePixelRatio` steigt mit dem Zoom, der Canvas bleibt scharf. Die Trefferprüfung nutzt `clientX/Y`. Das Ziehen der Titelleiste liest den echten Mauszeiger im Main-Prozess (`screen.getCursorScreenPoint`, Nachrichten `drag:start`/`drag:move`/`drag:end`), weil `screenX`-Deltas je nach Zoom und DPI nicht verlässlich sind. Strg + Mausrad über der Titelleiste sendet `scale:step` (Absender = Overlay). Die Transparenz (`win.setOpacity`) gilt für das ganze Fenster, die Freigabe-Karte eingeschlossen.
 
 ## Protokoll
 - `POST /event`: JSON `AgentEvent` (`ts, sessionId, agentId, parentId?, event, tool?, cwd, message?, agentType?, source?, model?, file?, costUsd?, progress?, context?, limit?, roster?`). Antwort 204.

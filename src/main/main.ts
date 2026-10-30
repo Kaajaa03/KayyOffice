@@ -1,7 +1,7 @@
-import { app, BrowserWindow, dialog, globalShortcut, ipcMain, Menu, nativeImage, powerSaveBlocker, shell, Tray } from 'electron';
+import { app, BrowserWindow, dialog, globalShortcut, ipcMain, Menu, nativeImage, powerSaveBlocker, screen, shell, Tray } from 'electron';
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, watch, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { loadConfig, saveConfigPort, updateConfig } from './config';
@@ -23,9 +23,12 @@ import { SourceGate } from './source';
 import { hooksInstalled, tooltipText } from './status';
 import type { WelcomeStatus } from './status';
 import { initialState, nextDueMs, pruneStale, reduce, tick } from './state';
-import { createOverlay, createWelcome, moveOverlayBy, placeOverlay, toggleOverlay } from './window';
-import { parsePlacement, parsePosition, PLACEMENTS } from './position';
-import type { Placement } from './position';
+import { createOverlay, createSettings, createWelcome, moveOverlayTo, placeOverlay, resizeOverlay, toggleOverlay } from './window';
+import { parsePlacement, parsePosition } from './position';
+import { parseOpacity } from './opacity';
+import { parseScale } from './scale';
+import { SettingsModel } from './settings';
+import type { ActionResult } from './settings';
 import { defaultLanguage, parseLanguage, t } from '../shared/i18n';
 import type { Lang } from '../shared/i18n';
 import { officeStats } from '../renderer/scene';
@@ -48,6 +51,9 @@ let demo: AppState | null = null; // temporary sample office (tray / welcome / -
 let demoTimer: NodeJS.Timeout | null = null;
 let win: BrowserWindow;
 let welcomeWin: BrowserWindow | null = null;
+let settingsWin: BrowserWindow | null = null;
+let model: SettingsModel;
+let zoom = 1; // size step actually applied to the overlay
 let tray: Tray;
 let publishTimer: NodeJS.Timeout | null = null;
 let publishDirty = false;
@@ -80,13 +86,7 @@ let configDirPath = '';
 let approvalMode: ApprovalMode = DEFAULT_APPROVAL_MODE;
 let lang: Lang = 'en';
 let livePort = 0;
-let awakeEnabled = true;
 let tooltip = '';
-
-function setApprovalMode(mode: ApprovalMode): void {
-  approvalMode = mode;
-  updateConfig(configDirPath, { approvals: mode });
-}
 
 async function openRecap(week: boolean): Promise<void> {
   const today = localDate(Date.now());
@@ -143,12 +143,8 @@ function syncHousekeeping(): void {
 const settingsPath = () => join(homedir(), '.claude', 'settings.json');
 const hookPath = () => (app.isPackaged ? join(process.resourcesPath, 'hook', 'hook.js') : join(app.getAppPath(), 'hook', 'hook.js'));
 
-async function toast(message: string, type: 'info' | 'error' = 'info'): Promise<void> {
-  await dialog.showMessageBox({ type, title: 'Kayy Office', message });
-}
-
-/** Shared by tray and welcome window; returns a human-readable result (never throws). */
-function installHooksAction(): { ok: boolean; text: string } {
+/** Shared by settings and welcome window; returns a plain-language result (never throws). */
+function installHooksAction(): ActionResult {
   try {
     const staged = stageHook(hookPath(), configDirPath);
     const { backupPath } = installHooks(settingsPath(), staged);
@@ -163,7 +159,17 @@ function installHooksAction(): { ok: boolean; text: string } {
     };
   } catch (e) {
     appLog('error', 'installer: install failed', e);
-    return { ok: false, text: (e as Error).message };
+    return { ok: false, text: t(lang, 'dialog.failed') };
+  }
+}
+
+function uninstallHooksAction(): ActionResult {
+  try {
+    uninstallHooks(settingsPath());
+    return { ok: true, text: t(lang, 'dialog.hooksRemoved') };
+  } catch (e) {
+    appLog('error', 'installer: uninstall failed', e);
+    return { ok: false, text: t(lang, 'dialog.failed') };
   }
 }
 
@@ -196,31 +202,60 @@ function openWelcome(): void {
   welcomeWin.on('closed', () => { welcomeWin = null; });
 }
 
-let placement: Placement | undefined;
-
-function savePosition(preset?: Placement): void {
-  const [x, y] = win.getPosition();
-  placement = preset;
-  updateConfig(configDirPath, { position: { x, y }, placement: preset });
-  refreshTray();
+function openSettings(): void {
+  if (settingsWin && !settingsWin.isDestroyed()) { settingsWin.show(); settingsWin.focus(); return; }
+  settingsWin = createSettings(lang);
+  settingsWin.on('closed', () => { settingsWin = null; });
 }
 
-function setPlacement(p: Placement): void {
-  placeOverlay(win, p);
-  savePosition(p);
+/** Pushes a fresh snapshot to the settings window (something changed in the settings, tray, drag or hooks). */
+function pushSettings(): void {
+  if (settingsWin && !settingsWin.isDestroyed()) settingsWin.webContents.send('settings:changed', model.snapshot());
 }
 
-function setLanguage(next: Lang): void {
-  if (next === lang) return;
+/** Applies a size step: window bounds first, then the page zoom so layout (CSS px) stays the same. */
+function applyScale(wanted: number): number {
+  zoom = resizeOverlay(win, wanted);
+  win.webContents.setZoomFactor(zoom);
+  return zoom;
+}
+
+function applyLanguage(next: Lang): void {
   lang = next;
-  updateConfig(configDirPath, { language: next });
-  for (const w of [win, welcomeWin]) if (w && !w.isDestroyed()) w.webContents.send('language', next);
+  for (const w of [win, welcomeWin, settingsWin]) if (w && !w.isDestroyed()) w.webContents.send('language', next);
   refreshTray();
+}
+
+/** Result text of a tool button that opens a file/folder. */
+async function openPath(file: string): Promise<ActionResult> {
+  const err = await shell.openPath(file);
+  return err ? { ok: false, text: t(lang, 'set.msg.openFailed') } : { ok: true, text: '' };
+}
+
+async function settingsAction(name: unknown): Promise<ActionResult> {
+  switch (name) {
+    case 'install-hooks': { const r = installHooksAction(); pushSettings(); return r; }
+    case 'remove-hooks': { const r = uninstallHooksAction(); pushSettings(); return r; }
+    case 'demo': startDemo(DEMO_MS); return { ok: true, text: t(lang, 'dialog.demoRunning') };
+    case 'welcome': openWelcome(); return { ok: true, text: '' };
+    case 'devlog': await openRecap(false); return { ok: true, text: '' };
+    case 'week': await openRecap(true); return { ok: true, text: '' };
+    case 'roles': return openPath(rolesPath);
+    case 'diag': {
+      const p = appLogPath();
+      if (!p || !existsSync(p)) return { ok: true, text: t(lang, 'set.msg.noDiag') };
+      shell.showItemInFolder(p);
+      return { ok: true, text: '' };
+    }
+    case 'close': settingsWin?.close(); return { ok: true, text: '' };
+    default: return { ok: false, text: t(lang, 'set.err.invalid') };
+  }
 }
 
 function buildTray(): void {
   tray = new Tray(nativeImage.createFromPath(iconPath()));
   tray.on('click', () => toggleOverlay(win));
+  tray.on('double-click', () => openSettings());
   refreshTray();
 }
 
@@ -230,66 +265,8 @@ function refreshTray(): void {
   updateTooltip();
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: t(lang, 'tray.toggle', { hotkey: HOTKEY.replace('Control', 'Ctrl') }), click: () => toggleOverlay(win) },
+    { label: t(lang, 'tray.settings'), click: () => openSettings() },
     { label: t(lang, 'tray.demo'), click: () => startDemo(DEMO_MS) },
-    { label: t(lang, 'tray.welcome'), click: () => openWelcome() },
-    {
-      label: t(lang, 'tray.approvals'),
-      submenu: ([
-        ['risky', 'tray.approvals.risky'],
-        ['all', 'tray.approvals.all'],
-        ['off', 'tray.approvals.off'],
-      ] as const).map(([mode, key]) => ({
-        label: t(lang, key), type: 'radio' as const, checked: approvalMode === mode, click: () => setApprovalMode(mode),
-      })),
-    },
-    {
-      label: t(lang, 'tray.language'),
-      submenu: ([['de', 'Deutsch'], ['en', 'English']] as const).map(([code, label]) => ({
-        label, type: 'radio' as const, checked: lang === code, click: () => setLanguage(code),
-      })),
-    },
-    {
-      label: t(lang, 'tray.position'),
-      submenu: [
-        ...PLACEMENTS.map((p) => ({
-          label: t(lang, `tray.pos.${p}` as const), type: 'radio' as const, checked: placement === p, click: () => setPlacement(p),
-        })),
-        { type: 'separator' as const },
-        { label: t(lang, 'tray.pos.hint'), enabled: false },
-      ],
-    },
-    { type: 'separator' },
-    {
-      label: t(lang, 'tray.installHooks'),
-      click: async () => { const r = installHooksAction(); await toast(r.text, r.ok ? 'info' : 'error'); },
-    },
-    {
-      label: t(lang, 'tray.removeHooks'),
-      click: async () => {
-        try { uninstallHooks(settingsPath()); await toast(t(lang, 'dialog.hooksRemoved')); }
-        catch (e) { appLog('error', 'installer: uninstall failed', e); await toast((e as Error).message, 'error'); }
-      },
-    },
-    { type: 'separator' },
-    { label: t(lang, 'tray.devLog'), click: () => void openRecap(false) },
-    { label: t(lang, 'tray.weekRecap'), click: () => void openRecap(true) },
-    { label: t(lang, 'tray.rolesOpen'), click: () => void shell.openPath(rolesPath) },
-    { label: t(lang, 'tray.rolesReload'), click: () => { roles = loadRoles(rolesPath); publish(); } },
-    { label: t(lang, 'tray.diagnostics'), click: () => { const p = appLogPath(); if (p) shell.showItemInFolder(p); } },
-    { type: 'separator' },
-    {
-      label: t(lang, 'tray.awake'),
-      type: 'checkbox',
-      checked: awakeEnabled,
-      click: (item) => { awakeEnabled = item.checked; awake.setEnabled(item.checked); },
-    },
-    {
-      label: t(lang, 'tray.autostart'),
-      type: 'checkbox',
-      checked: app.getLoginItemSettings().openAtLogin,
-      enabled: app.isPackaged,
-      click: (item) => app.setLoginItemSettings({ openAtLogin: item.checked }),
-    },
     { type: 'separator' },
     { label: t(lang, 'tray.quit'), click: () => app.quit() },
   ]));
@@ -297,7 +274,13 @@ function refreshTray(): void {
 
 async function screenshotAndQuit(path: string): Promise<void> {
   await new Promise((r) => setTimeout(r, 1500));
-  const target = flag('welcome') && welcomeWin && !welcomeWin.isDestroyed() ? welcomeWin : win;
+  const target = [flag('settings') ? settingsWin : null, flag('welcome') ? welcomeWin : null].find((w) => w && !w.isDestroyed()) ?? win;
+  if (target === settingsWin) { // the whole (scrolling) page in one picture
+    const h = await target.webContents.executeJavaScript('document.documentElement.scrollHeight') as number;
+    target.setMaximumSize(0, 0);
+    target.setContentSize(560, h);
+    await new Promise((r) => setTimeout(r, 300));
+  }
   const img = await target.webContents.capturePage();
   writeFileSync(path, img.toPNG());
   app.quit();
@@ -314,13 +297,15 @@ async function main(): Promise<void> {
   if (!app.requestSingleInstanceLock()) { app.quit(); return; }
   await app.whenReady();
 
-  const configDir = join(app.getPath('appData'), 'KayyOffice');
+  // --config-dir=<path> is a debug flag (manual runs must not touch the real settings)
+  const configDir = flagValue('config-dir') ?? join(app.getPath('appData'), 'KayyOffice');
   initDiag(configDir);
   const config = loadConfig(configDir);
   configDirPath = configDir;
   approvalMode = parseApprovalMode(config.approvals);
   hooksAdviceDone = config.hooksAdvice === 'asked';
-  lang = parseLanguage(config.language) ?? defaultLanguage(app.getLocale());
+  // --lang=<de|en> is a debug flag for screenshots (the run does not save it)
+  lang = parseLanguage(flagValue('lang')) ?? parseLanguage(config.language) ?? defaultLanguage(app.getLocale());
   livePort = config.port;
   // keep an already staged hook in sync with this app version (protocol changes must not silently break it)
   try { if (existsSync(join(configDir, 'hook.js'))) stageHook(hookPath(), configDir); } catch (e) { appLog('warn', 'main: could not refresh staged hook.js', e); }
@@ -331,10 +316,44 @@ async function main(): Promise<void> {
   rolesPath = join(configDir, 'roles.json');
   ensureDefaultRoles(rolesPath);
   roles = loadRoles(rolesPath);
-  placement = parsePlacement(config.placement);
-  win = createOverlay(parsePosition(config.position));
+  // edits of roles.json apply right after saving; fs.watch is event-driven (no timer, no polling)
+  let rolesDebounce: NodeJS.Timeout | null = null;
+  try {
+    watch(configDir, (_event, name) => {
+      if (name !== 'roles.json') return;
+      if (rolesDebounce) clearTimeout(rolesDebounce);
+      rolesDebounce = setTimeout(() => { rolesDebounce = null; roles = loadRoles(rolesPath); publish(); }, 300);
+    }).on('error', (e) => appLog('warn', 'main: roles watcher stopped', e));
+  } catch (e) { appLog('warn', 'main: cannot watch roles.json', e); }
+  awake.setEnabled(config.awake !== false);
+  // --scale=<n> is a debug flag for screenshots (the run does not save it)
+  const created = createOverlay(parsePosition(config.position), parseScale(flagValue('scale') !== undefined ? Number(flagValue('scale')) : config.scale), parseOpacity(config.opacity));
+  win = created.win;
+  zoom = created.scale;
+  model = new SettingsModel({
+    initial: { language: lang, scale: zoom, opacity: parseOpacity(config.opacity), placement: parsePlacement(config.placement), approvals: approvalMode, awake: config.awake !== false },
+    version: app.getVersion(),
+    hotkey: HOTKEY.replace('Control', 'Ctrl'),
+    autostartAvailable: app.isPackaged,
+    getAutostart: () => app.getLoginItemSettings().openAtLogin,
+    setAutostart: (on) => app.setLoginItemSettings({ openAtLogin: on }),
+    applyLanguage,
+    applyScale,
+    applyOpacity: (o) => win.setOpacity(o),
+    applyPlacement: (p) => { placeOverlay(win, p); const [x, y] = win.getPosition(); return { x, y }; },
+    setAwake: (on) => awake.setEnabled(on),
+    setApprovals: (mode) => { approvalMode = mode; },
+    persist: (patch) => updateConfig(configDirPath, patch),
+    hooksInstalled: () => {
+      try { return hooksInstalled(readFileSync(settingsPath(), 'utf8')); } catch { return false; /* no settings file yet */ }
+    },
+    modActive: () => gate.modActive(),
+    port: () => livePort,
+    changed: pushSettings,
+  });
   win.webContents.on('did-finish-load', () => {
     resetClickThrough(win);
+    win.webContents.setZoomFactor(zoom); // the zoom is lost on reload; the window size already includes it
     win.webContents.send('language', lang);
     win.webContents.send('visibility', true);
     win.webContents.send('state', applyRoles(view(), roles));
@@ -354,13 +373,28 @@ async function main(): Promise<void> {
     if (e.sender !== win.webContents) return;
     if (typeof v === 'boolean') win.setIgnoreMouseEvents(!v, { forward: true });
   });
-  ipcMain.on('drag:by', (e, dx: unknown, dy: unknown) => {
+  // the drag follows the real cursor (not screenX deltas), so it is exact at every page zoom and DPI
+  let dragFrom: { cursor: { x: number; y: number }; origin: { x: number; y: number } } | null = null;
+  ipcMain.on('drag:start', (e) => {
     if (e.sender !== win.webContents) return;
-    // finite and bounded: a runaway renderer must not fling the window around
-    if (typeof dx !== 'number' || typeof dy !== 'number' || !Number.isFinite(dx) || !Number.isFinite(dy)) return;
-    moveOverlayBy(win, Math.max(-2000, Math.min(2000, dx)), Math.max(-2000, Math.min(2000, dy)));
+    const [x, y] = win.getPosition();
+    dragFrom = { cursor: screen.getCursorScreenPoint(), origin: { x, y } };
   });
-  ipcMain.on('drag:end', (e) => { if (e.sender === win.webContents) savePosition(); });
+  ipcMain.on('drag:move', (e) => {
+    if (e.sender !== win.webContents || !dragFrom) return;
+    const c = screen.getCursorScreenPoint();
+    moveOverlayTo(win, { x: dragFrom.origin.x + c.x - dragFrom.cursor.x, y: dragFrom.origin.y + c.y - dragFrom.cursor.y });
+  });
+  ipcMain.on('drag:end', (e) => {
+    if (e.sender !== win.webContents || !dragFrom) return;
+    dragFrom = null;
+    const [x, y] = win.getPosition();
+    model.dragged({ x, y });
+  });
+  ipcMain.on('scale:step', (e, dir: unknown) => {
+    if (e.sender !== win.webContents) return;
+    if (dir === 1 || dir === -1) model.stepScale(dir);
+  });
   ipcMain.on('permission:decide', (e, id: unknown, decision: unknown) => {
     if (e.sender !== win.webContents) return;
     if (typeof id !== 'string' || (decision !== 'allow' && decision !== 'deny')) return;
@@ -380,8 +414,15 @@ async function main(): Promise<void> {
     if (name === 'install-hooks') return installHooksAction().text;
     if (name === 'demo') { startDemo(DEMO_MS); return t(lang, 'dialog.demoRunning'); }
     if (name === 'close') { welcomeWin.close(); return ''; }
+    if (name === 'lang:de' || name === 'lang:en') { model.set('language', name.slice(5)); return ''; }
+    if (name === 'open-settings') { openSettings(); return ''; }
     return '';
   });
+  // settings window: the sender must be that window (the other windows share the preload)
+  const fromSettings = (e: Electron.IpcMainInvokeEvent) => settingsWin !== null && !settingsWin.isDestroyed() && e.sender === settingsWin.webContents;
+  ipcMain.handle('settings:get', (e) => (fromSettings(e) ? model.snapshot() : null));
+  ipcMain.handle('settings:set', (e, key: unknown, value: unknown) => (fromSettings(e) ? model.set(key, value) : { ok: false, error: 'unknown' }));
+  ipcMain.handle('settings:action', (e, name: unknown) => (fromSettings(e) ? settingsAction(name) : { ok: false, text: '' }));
   app.on('before-quit', () => queue.dispose());
 
   if (flag('demo') || demoCount) {
@@ -429,6 +470,7 @@ async function main(): Promise<void> {
 
   const shot = flagValue('screenshot');
   if (flag('welcome')) openWelcome();
+  if (flag('settings')) openSettings();
   if (shot) await screenshotAndQuit(shot);
   else if (!perf && !flag('demo') && !demoCount && !flag('no-welcome') && !config.welcomeShown) {
     openWelcome();

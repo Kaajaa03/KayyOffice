@@ -24,6 +24,8 @@ function render(): void {
   document.documentElement.lang = lang;
   // strings come from our own static table (never from user input), so innerHTML is safe here
   document.querySelectorAll<HTMLElement>('[data-i18n]').forEach((n) => { n.textContent = t(lang, n.dataset.i18n as Key); });
+  document.querySelectorAll<HTMLElement>('[data-i18n-aria]').forEach((n) => { n.setAttribute('aria-label', t(lang, n.dataset.i18nAria as Key)); });
+  document.querySelectorAll<HTMLInputElement>('input[name=language]').forEach((i) => { i.checked = i.value === lang; });
   document.querySelectorAll<HTMLElement>('[data-i18n-html]').forEach((n) => { n.innerHTML = t(lang, n.dataset.i18nHtml as Key); });
   if (!status) return;
   setRow('s-hooks', t(lang, status.hooks ? 'welcome.status.hooksOn' : 'welcome.status.hooksOff'), status.hooks ? 'ok' : 'bad');
@@ -47,6 +49,10 @@ const bind = (id: string, action: string, msgId?: string) => {
 bind('hooks', 'install-hooks', 'm1');
 bind('demo', 'demo', 'm2');
 bind('close', 'close');
+bind('settings', 'open-settings');
+document.querySelectorAll<HTMLInputElement>('input[name=language]').forEach((i) => {
+  i.addEventListener('change', () => { if (i.checked) void kayy.action(`lang:${i.value}`); });
+});
 kayy.onLanguage((l) => { lang = l; el('m1').textContent = ''; el('m2').textContent = ''; render(); });
 render();
 void refresh();

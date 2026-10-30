@@ -9,20 +9,25 @@ export class SourceGate {
 
   constructor(private now: () => number = Date.now) {}
 
-  private modActive(sessionId: string): boolean {
+  private sessionIsMod(sessionId: string): boolean {
     const t = this.modSeen.get(sessionId);
     if (t === undefined) return false;
     if (this.now() - t > MOD_FRESH_MS) { this.modSeen.delete(sessionId); return false; }
     return true;
   }
 
+  /** True while any session reported through the Claude mod within the last 5 minutes (settings status). */
+  modActive(): boolean {
+    return [...this.modSeen.keys()].some((id) => this.sessionIsMod(id));
+  }
+
   acceptEvent(e: AgentEvent): boolean {
     if (e.source === 'mod') { this.modSeen.set(e.sessionId, this.now()); return true; }
-    return !this.modActive(e.sessionId);
+    return !this.sessionIsMod(e.sessionId);
   }
 
   acceptPermission(p: Pick<PermissionPayload, 'sessionId' | 'source'>): boolean {
     if (p.source === 'mod') { this.modSeen.set(p.sessionId, this.now()); return true; } // mod is alive even if its events were dropped
-    return !this.modActive(p.sessionId);
+    return !this.sessionIsMod(p.sessionId);
   }
 }
