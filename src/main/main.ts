@@ -23,7 +23,9 @@ import { SourceGate } from './source';
 import { hooksInstalled, tooltipText } from './status';
 import type { WelcomeStatus } from './status';
 import { initialState, nextDueMs, pruneStale, reduce, tick } from './state';
-import { createOverlay, createWelcome, toggleOverlay } from './window';
+import { createOverlay, createWelcome, moveOverlayBy, placeOverlay, toggleOverlay } from './window';
+import { parsePlacement, parsePosition, PLACEMENTS } from './position';
+import type { Placement } from './position';
 import { defaultLanguage, parseLanguage, t } from '../shared/i18n';
 import type { Lang } from '../shared/i18n';
 import { officeStats } from '../renderer/scene';
@@ -165,10 +167,47 @@ function installHooksAction(): { ok: boolean; text: string } {
   }
 }
 
+let hooksAdviceDone = false;
+
+/** Once, when the Claude mod reports while the hooks are installed too: the hooks only cost a
+ *  process per tool call and add nothing, so offer to remove them. Asked once, ever. */
+async function adviseAboutHooks(): Promise<void> {
+  if (hooksAdviceDone) return;
+  hooksAdviceDone = true;
+  let text: string | null = null;
+  try { text = readFileSync(settingsPath(), 'utf8'); } catch { return; /* no settings file: no hooks */ }
+  if (!hooksInstalled(text)) return;
+  updateConfig(configDirPath, { hooksAdvice: 'asked' });
+  const { response } = await dialog.showMessageBox({
+    type: 'question',
+    title: 'Kayy Office',
+    message: t(lang, 'advice.hooks.text'),
+    buttons: [t(lang, 'advice.hooks.remove'), t(lang, 'advice.hooks.keep')],
+    defaultId: 1,
+    cancelId: 1,
+  });
+  if (response !== 0) return;
+  try { uninstallHooks(settingsPath()); } catch (e) { appLog('error', 'installer: uninstall after advice failed', e); }
+}
+
 function openWelcome(): void {
   if (welcomeWin && !welcomeWin.isDestroyed()) { welcomeWin.focus(); return; }
   welcomeWin = createWelcome(lang);
   welcomeWin.on('closed', () => { welcomeWin = null; });
+}
+
+let placement: Placement | undefined;
+
+function savePosition(preset?: Placement): void {
+  const [x, y] = win.getPosition();
+  placement = preset;
+  updateConfig(configDirPath, { position: { x, y }, placement: preset });
+  refreshTray();
+}
+
+function setPlacement(p: Placement): void {
+  placeOverlay(win, p);
+  savePosition(p);
 }
 
 function setLanguage(next: Lang): void {
@@ -208,6 +247,16 @@ function refreshTray(): void {
       submenu: ([['de', 'Deutsch'], ['en', 'English']] as const).map(([code, label]) => ({
         label, type: 'radio' as const, checked: lang === code, click: () => setLanguage(code),
       })),
+    },
+    {
+      label: t(lang, 'tray.position'),
+      submenu: [
+        ...PLACEMENTS.map((p) => ({
+          label: t(lang, `tray.pos.${p}` as const), type: 'radio' as const, checked: placement === p, click: () => setPlacement(p),
+        })),
+        { type: 'separator' as const },
+        { label: t(lang, 'tray.pos.hint'), enabled: false },
+      ],
     },
     { type: 'separator' },
     {
@@ -270,6 +319,7 @@ async function main(): Promise<void> {
   const config = loadConfig(configDir);
   configDirPath = configDir;
   approvalMode = parseApprovalMode(config.approvals);
+  hooksAdviceDone = config.hooksAdvice === 'asked';
   lang = parseLanguage(config.language) ?? defaultLanguage(app.getLocale());
   livePort = config.port;
   // keep an already staged hook in sync with this app version (protocol changes must not silently break it)
@@ -281,7 +331,8 @@ async function main(): Promise<void> {
   rolesPath = join(configDir, 'roles.json');
   ensureDefaultRoles(rolesPath);
   roles = loadRoles(rolesPath);
-  win = createOverlay();
+  placement = parsePlacement(config.placement);
+  win = createOverlay(parsePosition(config.position));
   win.webContents.on('did-finish-load', () => {
     resetClickThrough(win);
     win.webContents.send('language', lang);
@@ -303,6 +354,13 @@ async function main(): Promise<void> {
     if (e.sender !== win.webContents) return;
     if (typeof v === 'boolean') win.setIgnoreMouseEvents(!v, { forward: true });
   });
+  ipcMain.on('drag:by', (e, dx: unknown, dy: unknown) => {
+    if (e.sender !== win.webContents) return;
+    // finite and bounded: a runaway renderer must not fling the window around
+    if (typeof dx !== 'number' || typeof dy !== 'number' || !Number.isFinite(dx) || !Number.isFinite(dy)) return;
+    moveOverlayBy(win, Math.max(-2000, Math.min(2000, dx)), Math.max(-2000, Math.min(2000, dy)));
+  });
+  ipcMain.on('drag:end', (e) => { if (e.sender === win.webContents) savePosition(); });
   ipcMain.on('permission:decide', (e, id: unknown, decision: unknown) => {
     if (e.sender !== win.webContents) return;
     if (typeof id !== 'string' || (decision !== 'allow' && decision !== 'deny')) return;
@@ -335,6 +393,7 @@ async function main(): Promise<void> {
       port: config.port,
       onEvent: (e) => {
         if (!gate.acceptEvent(e)) return;
+        if (e.source === 'mod') void adviseAboutHooks();
         eventLog.append(e);
         state = reduce(state, e);
         syncHousekeeping();

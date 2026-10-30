@@ -8,7 +8,7 @@ const PERMISSION_HOOK_TIMEOUT_S = 25;
 const KEEP_BACKUPS = 5;
 const BOM = new RegExp('^' + String.fromCharCode(0xfeff));
 
-interface HookEntry { matcher?: string; hooks?: Array<{ type: string; command?: string; timeout?: number }> }
+interface HookEntry { matcher?: string; hooks?: Array<{ type: string; command?: string; timeout?: number; async?: boolean }> }
 type Settings = { hooks?: Record<string, HookEntry[]> } & Record<string, unknown>;
 
 const isOurs = (e: HookEntry) => !!e.hooks?.some((h) => h.command?.includes(MARKER));
@@ -69,7 +69,8 @@ export function installHooks(settingsPath: string, hookScriptPath: string): { ba
   // PostToolUseFailure is a Claude Code event of its own; hook.js reports it as PostToolUse + ERROR.
   for (const name of [...EVENT_NAMES, 'PostToolUseFailure']) {
     const kept = (hooks[name] ?? []).filter((e) => !isOurs(e));
-    const ours: HookEntry = { hooks: [{ type: 'command', command }] };
+    // async: Claude does not wait for the hook process (about 60 ms per call, twice per tool call)
+    const ours: HookEntry = { hooks: [{ type: 'command', command, async: true }] };
     if (name === 'PreToolUse' || name === 'PostToolUse' || name === 'PostToolUseFailure') ours.matcher = '*';
     hooks[name] = [...kept, ours];
   }

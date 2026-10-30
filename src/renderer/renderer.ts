@@ -32,6 +32,8 @@ interface KayyApi {
   onPermissions(cb: (p: PermissionRequestInfo[]) => void): void;
   setInteractive(v: boolean): void;
   decide(id: string, decision: 'allow' | 'deny'): void;
+  dragBy(dx: number, dy: number): void;
+  dragEnd(): void;
 }
 const kayy = (window as unknown as { kayy: KayyApi }).kayy;
 
@@ -47,6 +49,7 @@ let hint: string | null = null;
 let permissions: PermissionRequestInfo[] = [];
 let hits: Hit[] = [];
 let hover: Hit | null = null;
+let header: { x: number; w: number } | null = null; // the room's title strip (drag handle), in window px
 const sync = new InteractiveSync();
 let visible = true;
 let looping = false;
@@ -231,6 +234,7 @@ function draw(now: number): void {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.imageSmoothingEnabled = false;
   hits = [];
+  header = null;
   const agents = Object.values(state.agents);
   let panelH = 0;
   if (agents.length) {
@@ -253,6 +257,7 @@ function draw(now: number): void {
     ensureStatic(room, ph, new Set(seated.map((x) => x.s.slot)), clusterProjects.map((p) => p.join(' · ')), dpr);
 
     const ox = Math.round((w - room.w * P) / 2);
+    header = { x: ox, w: room.w * P };
     const roomH = room.h * P;
     ctx.drawImage(staticCanvas, Math.round(ox * dpr), 0);
 
@@ -318,14 +323,38 @@ function wake(): void {
 const hitAt = (x: number, y: number): Hit | null =>
   hits.find((h) => x >= h.x - 3 && x <= h.x + h.w + 3 && y >= h.y - 3 && y <= h.y + h.h + 3) ?? null;
 
+const overHeader = (x: number, y: number): boolean =>
+  header !== null && y >= 0 && y < HEADER_H && x >= header.x && x <= header.x + header.w;
+
+// Dragging the title strip moves the window (main clamps it to the displays and remembers the spot).
+let drag: { x: number; y: number } | null = null;
+function endDrag(): void {
+  if (!drag) return;
+  drag = null;
+  kayy.dragEnd();
+}
+
 window.addEventListener('mousemove', (e) => {
+  if (drag && e.buttons === 0) endDrag(); // the button was released outside the window
+  if (drag) {
+    kayy.dragBy(e.screenX - drag.x, e.screenY - drag.y);
+    drag = { x: e.screenX, y: e.screenY };
+    return;
+  }
   const h = hitAt(e.clientX, e.clientY);
-  const want = h !== null;
-  if (sync.want(want)) { kayy.setInteractive(want); canvas.style.cursor = want ? 'pointer' : 'default'; }
+  const grab = h === null && overHeader(e.clientX, e.clientY);
+  const want = h !== null || grab;
+  if (sync.want(want)) kayy.setInteractive(want);
+  canvas.style.cursor = grab ? 'move' : h ? 'pointer' : 'default';
   if (h?.id !== hover?.id || h?.decision !== hover?.decision) { hover = h; draw(performance.now()); }
 });
-window.addEventListener('mousedown', (e) => guard.down(hitAt(e.clientX, e.clientY), performance.now()));
+window.addEventListener('mousedown', (e) => {
+  const h = hitAt(e.clientX, e.clientY);
+  if (h === null && e.button === 0 && overHeader(e.clientX, e.clientY)) { drag = { x: e.screenX, y: e.screenY }; return; }
+  guard.down(h, performance.now());
+});
 window.addEventListener('mouseup', (e) => {
+  if (drag) { endDrag(); return; }
   const h = guard.up(hitAt(e.clientX, e.clientY), performance.now());
   if (h) kayy.decide(h.id, h.decision);
 });
@@ -342,7 +371,7 @@ kayy.onLanguage((l) => { lang = l; wake(); safeDraw(performance.now()); });
 motionQuery.addEventListener('change', (e) => { reduced = e.matches; wake(); safeDraw(performance.now()); });
 kayy.onVisibility((v) => {
   visible = v;
-  if (!v) { sync.reset(); hover = null; } // main resets click-through on hide; forget our belief too
+  if (!v) { sync.reset(); hover = null; drag = null; } // main resets click-through on hide; forget our belief too
   else wake();
 });
 window.addEventListener('resize', () => { resize(); staticKey = ''; draw(performance.now()); });

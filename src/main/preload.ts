@@ -12,6 +12,9 @@ contextBridge.exposeInMainWorld('kayy', {
     ipcRenderer.on('permissions', (_e, p: PermissionRequestInfo[]) => cb(p)),
   setInteractive: (v: boolean) => ipcRenderer.send('interactive', v),
   decide: (id: string, decision: 'allow' | 'deny') => ipcRenderer.send('permission:decide', id, decision),
+  /** Dragging the title strip: screen-pixel deltas, then a final end message (main saves the position). */
+  dragBy: (dx: number, dy: number) => ipcRenderer.send('drag:by', dx, dy),
+  dragEnd: () => ipcRenderer.send('drag:end'),
   /** Welcome window buttons: 'install-hooks' | 'demo' | 'close'. Resolves with a status text. */
   action: (name: string): Promise<string> => ipcRenderer.invoke('action', name),
   /** Welcome window: live status rows (hooks, approval mode, port). */

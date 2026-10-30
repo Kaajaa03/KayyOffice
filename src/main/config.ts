@@ -13,6 +13,12 @@ export interface Config {
   approvals?: string;
   /** 'de' | 'en'; absent = follow the system language. */
   language?: string;
+  /** Where the overlay was dragged to (window top-left, screen px); absent = top centre. */
+  position?: { x: number; y: number };
+  /** The tray preset the position came from, so the menu can show it checked; absent after a free drag. */
+  placement?: string;
+  /** 'asked' once the user was told that hooks are redundant while the Claude mod reports. */
+  hooksAdvice?: string;
 }
 
 export const DEFAULT_PORT = 47821;
