@@ -265,3 +265,83 @@ test('/office closes an open pane', async ($: any, on: any) => {
   expect((await $.command.run({ command: 'office', args: '' })).text).toBe('Kayy Office geschlossen.')
   expect(opened).toEqual(['close:kayy-office'])
 })
+
+// ---------- progress (WP3) ----------
+
+const todos = (...s: string[]) => ({ tool: 'TodoWrite', todos: s.map((status, i) => ({ content: `Task ${i}`, status, activeForm: `Task ${i} läuft` })) })
+const posts = (events: () => any[]) => events().filter(e => e.event === 'PostToolUse')
+
+test('TodoWrite sends progress on PostToolUse, only when it changed for that agent', async ($: any, on: any) => {
+  const { clock, events } = await setup($, on)
+  await $.tool.call(todos('in_progress', 'pending'))
+  await $.tool.call(todos('in_progress', 'pending'))
+  await $.tool.call(todos('completed', 'in_progress'))
+  await $.tool.call({ ...todos('in_progress', 'pending'), agentId: 'a9' })
+  await flush(clock)
+  expect(posts(events).map(e => e.progress)).toEqual([
+    { done: 0, total: 2, current: 'Task 0 läuft' },
+    undefined,
+    { done: 1, total: 2, current: 'Task 1 läuft' },
+    { done: 0, total: 2, current: 'Task 0 läuft' },
+  ])
+  expect(events().filter(e => e.event === 'PreToolUse').every(e => e.progress === undefined)).toBe(true)
+})
+
+test('progress is never sent for other tools or invalid lists', async ($: any, on: any) => {
+  const { clock, events } = await setup($, on)
+  await $.tool.call({ tool: 'Bash', command: 'ls', todos: [{ content: 'x', status: 'pending' }] })
+  await $.tool.call({ tool: 'TodoWrite', todos: [] })
+  await $.tool.call({ tool: 'TodoWrite', todos: 'nope' })
+  await flush(clock)
+  expect(events().some(e => 'progress' in e)).toBe(false)
+})
+
+test('after Stop the same list is sent again', async ($: any, on: any) => {
+  const { clock, events } = await setup($, on)
+  await $.tool.call(todos('pending'))
+  await $.turn.complete({ reason: 'answer', answer: '', durationMs: 1, isAborted: false, turnId: 't1' })
+  await $.tool.call(todos('pending'))
+  await flush(clock)
+  expect(posts(events).map(e => e.progress)).toEqual([{ done: 0, total: 1 }, { done: 0, total: 1 }])
+})
+
+test('a failed TodoWrite sends no progress', async ($: any, on: any) => {
+  const { clock, events } = await setup($, on, { toolResult: { isError: true, result: 'x' } })
+  await $.tool.call(todos('pending'))
+  await flush(clock)
+  expect(events().some(e => 'progress' in e)).toBe(false)
+})
+
+test('progress with an unreachable overlay changes no result', async ($: any, on: any) => {
+  const { sent, clock } = await setup($, on, { eventsFail: true })
+  const ran = await $.tool.call(todos('in_progress'))
+  await flush(clock)
+  expect(ran.deny).toBeUndefined()
+  expect(sent.length).toBe(1)
+})
+
+test('the pane shows "3/7 · current" per agent and clears it on Stop', async ($: any, on: any) => {
+  await setup($, on)
+  await $.tool.call({ tool: 'TodoWrite', todos: [...Array(3).fill({ content: 'a', status: 'completed' }), { content: 'Datei anlegen', status: 'in_progress', activeForm: 'Lege Datei an' }, ...Array(3).fill({ content: 'b', status: 'pending' })] })
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect((await ui.find({ type: 'Text', text: /Haupt-Agent/ }))?.text).toContain('3/7 · Lege Datei an')
+  await ui.unmount()
+  await $.turn.complete({ reason: 'answer', answer: '', durationMs: 1, isAborted: false, turnId: 't1' })
+  const ui2 = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect((await ui2.find({ type: 'Text', text: /Haupt-Agent/ }))?.text).not.toMatch(/\d\/\d/)
+  await ui2.unmount()
+})
+
+test('a subagent keeps its own progress until its own turn completes', async ($: any, on: any) => {
+  await setup($, on)
+  await $.agent.spawn({ prompt: 'x', description: 'd', subagentType: 'Explore' })
+  await $.tool.call({ ...todos('completed', 'pending'), agentId: 'a1' })
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect((await ui.find({ type: 'Text', text: /Explore/ }))?.text).toContain('1/2')
+  expect((await ui.find({ type: 'Text', text: /Haupt-Agent/ }))?.text).not.toMatch(/\d\/\d/)
+  await ui.unmount()
+  await $.turn.complete({ reason: 'answer', answer: '', durationMs: 1, isAborted: false, turnId: 't2', agentId: 'a1' })
+  const ui2 = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect((await ui2.find({ type: 'Text', text: /Explore/ }))?.text).not.toMatch(/\d\/\d/)
+  await ui2.unmount()
+})

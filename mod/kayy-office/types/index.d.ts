@@ -9,6 +9,8 @@ export type AgentRow = {
   tool?: string
   file?: string
   model?: string
+  /** From the agent's TodoWrite list: tasks done of all, and the one in progress. */
+  progress?: { done: number; total: number; current?: string }
 }
 
 /** A permission ask waiting for an answer from the overlay or the pane. */

@@ -70,7 +70,8 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>, off
         const doing = row.file ?? row.tool
         const chip = modelChip(row.model)
         const name = row.id === MAIN ? 'Haupt-Agent' : row.type
-        const line = `${'  '.repeat(depth)}${STATUS[row.status]} ${name}${doing ? ' · ' + doing : ''}`
+        const prog = row.progress ? ` · ${row.progress.done}/${row.progress.total}${row.progress.current ? ' · ' + row.progress.current : ''}` : ''
+        const line = `${'  '.repeat(depth)}${STATUS[row.status]} ${name}${doing ? ' · ' + doing : ''}${prog}`
         return (
           <Text dimColor={row.status === 'done'}>
             {cutTo(line, width - (chip ? 4 : 0))}

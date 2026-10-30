@@ -1,5 +1,6 @@
 import { atom, update, type EngineInterface } from 'claude-code'
 import type { AgentRow, OverlayLink } from '../types'
+import type { Progress } from './progress'
 import type { Rules } from './routing'
 
 // Values the pane draws from live in $.state (they outlive a reload). The validator wants the
@@ -21,6 +22,8 @@ export type Office = {
   cwd?: string
   mainModel?: string
   spawned: Map<string, { parentId?: string; type: string; model?: string }>
+  /** Last progress sent per agent (key: agent id or MAIN); a repeat is not sent again. */
+  progress: Map<string, Progress>
   waiters: Map<string, (decision: 'allow' | 'deny' | 'ask' | undefined) => void>
   rules?: Rules
   /** Cached from $.store at session start: autopilot (default off), orchestrator (default on). */
@@ -34,6 +37,7 @@ export const newOffice = (): Office => ({
   queued: 0,
   link: 'unknown',
   spawned: new Map(),
+  progress: new Map(),
   waiters: new Map(),
 })
 

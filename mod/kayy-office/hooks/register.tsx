@@ -3,6 +3,7 @@ import type { AgentRow, PendingRow } from '../types'
 import { PANE_ID, approve, ioFor, shouldForward, type CheckEvent } from './approver'
 import { errorOf, fileOf, makeEvent, type EventName } from './mapping'
 import { sendEvent } from './overlay'
+import { sameProgress, todoProgress } from './progress'
 import { renderPane } from './pane'
 import { autopilotCheck } from './autopilot'
 import { withOrchestrator } from './orchestrator'
@@ -117,6 +118,7 @@ export const register: Register = on => {
     office.sessionId = undefined
     office.cwd = e.cwd
     office.spawned.clear()
+    office.progress.clear()
     try {
       office.mainModel = await $.session.model()
     } catch {
@@ -159,8 +161,12 @@ export const register: Register = on => {
     }
     const ran = await next(e).finally(() => (question !== undefined ? quietly(setDecision($, null)) : undefined))
     const message = errorOf(e.tool, ran)
-    await emit($, office, 'PostToolUse', e.agentId, { tool: e.tool, file, message, model: modelOf(office, e.agentId) })
-    await quietly(setAgent($, row, { status: 'running', tool: undefined, file: undefined }))
+    // TodoWrite: tasks done of all, sent only when it differs from this agent's last one.
+    const todo = e.tool === 'TodoWrite' && message === undefined ? todoProgress(e) : undefined
+    const progress = todo !== undefined && !sameProgress(office.progress.get(row), todo) ? todo : undefined
+    if (progress !== undefined) office.progress.set(row, progress)
+    await emit($, office, 'PostToolUse', e.agentId, { tool: e.tool, file, message, progress, model: modelOf(office, e.agentId) })
+    await quietly(setAgent($, row, { status: 'running', tool: undefined, file: undefined, ...(progress !== undefined ? { progress } : {}) }))
     return ran
   }).catch(($, e, next) => next(e))
 
@@ -212,11 +218,13 @@ export const register: Register = on => {
         model: known?.model,
         message: failed ? 'ERROR: subagent failed' : undefined,
       })
-      await quietly(setAgent($, e.agentId, { status: failed ? 'error' : 'done', tool: undefined, file: undefined }))
+      office.progress.delete(e.agentId)
+      await quietly(setAgent($, e.agentId, { status: failed ? 'error' : 'done', tool: undefined, file: undefined, progress: undefined }))
     } else {
       if (e.usage?.model) office.mainModel = e.usage.model
       await emit($, office, 'Stop', undefined, { model: office.mainModel, costUsd: await usd($) })
-      await quietly(setAgent($, MAIN, { status: 'idle', tool: undefined, file: undefined, model: office.mainModel }))
+      office.progress.delete(MAIN)
+      await quietly(setAgent($, MAIN, { status: 'idle', tool: undefined, file: undefined, progress: undefined, model: office.mainModel }))
     }
     return next(e)
   }).catch(($, e, next) => next(e))
@@ -227,6 +235,7 @@ export const register: Register = on => {
     // A /clear goes on under a new session id: forget the old one.
     office.sessionId = undefined
     office.spawned.clear()
+    office.progress.clear()
     await quietly(update($, pending, () => []))
     return next(e)
   }).catch(($, e, next) => next(e))

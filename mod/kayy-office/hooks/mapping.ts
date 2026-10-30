@@ -1,4 +1,5 @@
 // Pure mapping from mod hook inputs to the overlay's AgentEvent (see the spec's protocol section).
+import type { Progress } from './progress'
 
 export type EventName =
   | 'SessionStart'
@@ -24,6 +25,7 @@ export type AgentEvent = {
   model?: string
   costUsd?: number
   file?: string
+  progress?: Progress
 }
 
 /** Who and where an event happened: the fields every event carries. */
@@ -82,6 +84,7 @@ export const makeEvent = (
     model?: string
     costUsd?: number
     file?: string
+    progress?: Progress
   } = {},
 ): AgentEvent => {
   const out: AgentEvent = {
@@ -104,6 +107,7 @@ export const makeEvent = (
   if (agentType !== undefined) out.agentType = agentType
   if (model !== undefined) out.model = model
   if (file !== undefined) out.file = file
+  if (extra.progress !== undefined) out.progress = extra.progress
   if (typeof extra.costUsd === 'number' && Number.isFinite(extra.costUsd)) out.costUsd = extra.costUsd
   return out
 }

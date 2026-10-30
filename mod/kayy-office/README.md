@@ -12,6 +12,7 @@ Install (private repo, needs GitHub access): `/plugin install kayy-office --mark
 - **Router**: kayy-router's rules (`rules.json`), `/router [status|on|off]`, status line.
 - **Pane**: `/office` opens/closes it (agents, models, cost, router counts, autopilot counters, open decision, approvals with Erlauben/Ablehnen/Dialog); `/office status` prints a summary.
 - **Decision signal**: when Claude calls `AskUserQuestion` or `ExitPlanMode`, the overlay gets a `Notification` event `Entscheidung: <question, max. 120 chars>` and the pane shows "Entscheidung offen". Nobody but you answers such questions.
+- **Progress**: when an agent calls `TodoWrite`, the `PostToolUse` event carries `progress: { done, total, current? }` (`done` = completed tasks, `total` = all valid tasks, 1-99, else none; `current` = the in-progress task's `activeForm` or `content`, control characters removed, max. 80 chars). Sent only when it differs from that agent's last one, never for other tools or after a failed call. The pane appends `3/7 · <current>` to the agent row until its Stop/turn end. Costs no tokens: the data is already in the tool call.
 
 ## Commands
 
