@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { FrameGate, animationMode } from '../src/renderer/loop';
+import { FrameGate, animTime, animationMode } from '../src/renderer/loop';
 import type { Agent } from '../src/shared/types';
 
 const a = (status: Agent['status']): Agent => ({ id: status, sessionId: status, cwd: 'x', status, lastEventTs: 0 });
@@ -40,5 +40,18 @@ describe('FrameGate', () => {
     expect(g.shouldDraw(0, true, true)).toBe(true);
     expect(g.shouldDraw(10, true, true)).toBe(false);
     expect(g.shouldDraw(17, true, true)).toBe(true);
+  });
+});
+
+describe('reduced motion', () => {
+  it('never runs at 60 fps; working agents need no redraw timer at all', () => {
+    expect(animationMode([a('working')], Date.now(), true)).toBe('none');
+    expect(animationMode([a('waiting')], Date.now(), true)).toBe('none');
+    const done: Agent = { ...a('done'), lastEventTs: 100_000 - 500 };
+    expect(animationMode([done], 100_000, true)).toBe('slow'); // relocation by time still needs a tick
+  });
+  it('animTime freezes the animation clock', () => {
+    expect(animTime(12345, false)).toBe(12345);
+    expect(animTime(12345, true)).toBe(0);
   });
 });

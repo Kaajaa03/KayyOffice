@@ -1,11 +1,13 @@
-import { isWalking } from './walk';
+import { COFFEE_MS, WALK_MS, isWalking } from './walk';
 import type { Agent } from '../shared/types';
 
 /**
  * fast = an agent is working or walking (60 fps); slow = waiting/error/done without walking (10 fps timer);
  * none = static (the cached room is all there is).
+ * Reduced motion: nothing animates, so only a finished agent's timed relocation needs a (slow) tick.
  */
-export function animationMode(agents: Agent[], now = Date.now()): 'fast' | 'slow' | 'none' {
+export function animationMode(agents: Agent[], now = Date.now(), reduced = false): 'fast' | 'slow' | 'none' {
+  if (reduced) return agents.some((a) => a.status === 'done' && now - a.lastEventTs < WALK_MS + COFFEE_MS) ? 'slow' : 'none';
   let slow = false;
   for (const a of agents) {
     if (a.status === 'working' || isWalking(a, now)) return 'fast';
@@ -13,6 +15,9 @@ export function animationMode(agents: Agent[], now = Date.now()): 'fast' | 'slow
   }
   return slow ? 'slow' : 'none';
 }
+
+/** Animation clock for sprites: frozen at 0 under reduced motion (no bobbing, blinking or steam). */
+export const animTime = (now: number, reduced: boolean): number => (reduced ? 0 : now);
 
 export interface FrameGateOptions {
   activeFps: number;

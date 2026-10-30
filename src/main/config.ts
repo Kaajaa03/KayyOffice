@@ -9,6 +9,8 @@ export interface Config {
   welcomeShown?: boolean;
   /** 'all' | 'risky' (default) | 'off': which permission requests get an overlay card. */
   approvals?: string;
+  /** 'de' | 'en'; absent = follow the system language. */
+  language?: string;
 }
 
 export const DEFAULT_PORT = 47821;

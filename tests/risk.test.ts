@@ -16,7 +16,7 @@ describe('riskOf (Blast Radius, local heuristic)', () => {
   ])('%s `%s` is high risk', (tool, cmd, target) => {
     const r = riskOf(tool, cmd);
     expect(r.level).toBe('high');
-    expect(r.note.length).toBeGreaterThan(3);
+    expect(r.note).toMatch(/^risk\./);
     if (target) expect(r.target).toBe(target);
   });
   it.each([

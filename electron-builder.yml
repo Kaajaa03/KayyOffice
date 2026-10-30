@@ -8,12 +8,18 @@ files:
 extraResources:
   - from: hook
     to: hook
+  - from: build/icon.ico
+    to: icon.ico
 win:
+  icon: build/icon.ico
   target:
     - nsis
     - portable
-  signAndEditExecutable: false
+  signExecutable: false
 nsis:
   oneClick: true
   perMachine: false
   deleteAppDataOnUninstall: false
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
+  installerHeaderIcon: build/icon.ico

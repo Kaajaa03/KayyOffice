@@ -1,12 +1,15 @@
+import type { Key } from './i18n';
+
 /** "Blast radius": a local, LLM-free guess at how destructive a pending tool call is. */
 export interface Risk {
   level: 'none' | 'medium' | 'high';
-  note: string;
+  /** i18n key of the explanation (absent when level is 'none'). */
+  note?: Key;
   /** What would be hit, when it can be read from the command (path). */
   target?: string;
 }
 
-const NONE: Risk = { level: 'none', note: '' };
+const NONE: Risk = { level: 'none' };
 const unquote = (s: string) => s.replace(/^["'`]+|["'`]+$/g, '');
 const DELETERS = new Set(['rm', 'del', 'erase', 'rmdir', 'rd', 'ri', 'remove-item']);
 const WRAPPERS = new Set(['sudo', 'env', 'nohup', 'time', 'command', 'xargs', 'exec', 'doas']);
@@ -32,7 +35,7 @@ function segmentRisk(segment: string): Risk {
     const psRecursive = args.some((t) => /^-r(ec(urse)?)?$/i.test(t));
     const cmdRecursive = (name === 'del' || name === 'erase' || name === 'rmdir' || name === 'rd') && args.some((t) => /^\/s$/i.test(t));
     if (unixRecursive || psRecursive || cmdRecursive) {
-      return { level: 'high', note: 'Löscht Dateien rekursiv', target: targetOf(args) };
+      return { level: 'high', note: 'risk.deleteRecursive', target: targetOf(args) };
     }
     return NONE;
   }
@@ -42,12 +45,12 @@ function segmentRisk(segment: string): Risk {
     while (i < args.length && args[i].startsWith('-')) i += /^-[Cc]$/.test(args[i]) ? 2 : 1; // git -C path / -c k=v / --no-pager
     const sub = args[i]?.toLowerCase();
     const rest = args.slice(i + 1);
-    if (sub === 'reset' && rest.includes('--hard')) return { level: 'high', note: 'Verwirft alle lokalen Änderungen' };
+    if (sub === 'reset' && rest.includes('--hard')) return { level: 'high', note: 'risk.resetHard' };
     if (sub === 'push') {
       const force = rest.some((t) => t === '--force' || t.startsWith('--force-with-lease') || /^-[a-z]*f[a-z]*$/.test(t) || /^\+\S/.test(t));
-      if (force) return { level: 'high', note: 'Überschreibt die Remote-Historie' };
+      if (force) return { level: 'high', note: 'risk.forcePush' };
     }
-    if (sub === 'clean' && hasShortFlag(rest, /f/)) return { level: 'high', note: 'Löscht untracked Dateien' };
+    if (sub === 'clean' && hasShortFlag(rest, /f/)) return { level: 'high', note: 'risk.clean' };
   }
   return NONE;
 }
@@ -55,17 +58,17 @@ function segmentRisk(segment: string): Risk {
 export function riskOf(tool: string, summary: string): Risk {
   if (/^(Edit|Write|MultiEdit|NotebookEdit)$/.test(tool)) {
     return /(^|[\\/])\.env($|\.)|[\\/]\.ssh[\\/]|id_rsa|credentials|\.pem$/i.test(summary)
-      ? { level: 'medium', note: 'Sensible Datei (Zugangsdaten/Schlüssel)', target: summary }
+      ? { level: 'medium', note: 'risk.sensitiveFile', target: summary }
       : NONE;
   }
   if (!/^(Bash|PowerShell)$/.test(tool) || !summary) return NONE;
   const cmd = summary;
 
   // whole-string patterns that span pipes / need no tokenising
-  if (/\b(curl|wget)\b[^|;\n]*\|\s*(sudo\s+)?(ba|z)?sh\b/i.test(cmd)) return { level: 'high', note: 'Führt heruntergeladenen Code aus' };
-  if (/\bdrop\s+(table|database)\b/i.test(cmd)) return { level: 'high', note: 'Löscht Datenbank-Objekte' };
-  if (/\bformat\s+[a-z]:/i.test(cmd)) return { level: 'high', note: 'Formatiert ein Laufwerk' };
-  if (/-exec\s+rm\s+-[a-z]*r/i.test(cmd)) return { level: 'high', note: 'Löscht Dateien rekursiv' };
+  if (/\b(curl|wget)\b[^|;\n]*\|\s*(sudo\s+)?(ba|z)?sh\b/i.test(cmd)) return { level: 'high', note: 'risk.pipeShell' };
+  if (/\bdrop\s+(table|database)\b/i.test(cmd)) return { level: 'high', note: 'risk.dropDb' };
+  if (/\bformat\s+[a-z]:/i.test(cmd)) return { level: 'high', note: 'risk.format' };
+  if (/-exec\s+rm\s+-[a-z]*r/i.test(cmd)) return { level: 'high', note: 'risk.deleteRecursive' };
 
   // commands wrapped in `bash -c "..."`, `powershell -Command '...'`, `cmd /c "..."`
   for (const m of cmd.matchAll(/\b(?:(?:ba|z|da)?sh\s+-[a-z]*c|(?:pwsh|powershell)(?:\.exe)?\b[^"'\n]*?-c(?:ommand)?|cmd(?:\.exe)?\s+\/c)\s+(?:"([^"]*)"|'([^']*)')/gi)) {
@@ -78,6 +81,6 @@ export function riskOf(tool: string, summary: string): Risk {
     const r = segmentRisk(segment);
     if (r.level === 'high') return r;
   }
-  if (/\b(chmod|chown)\s+-R\b/.test(cmd)) medium = { level: 'medium', note: 'Ändert Rechte rekursiv' };
+  if (/\b(chmod|chown)\s+-R\b/.test(cmd)) medium = { level: 'medium', note: 'risk.chmodRecursive' };
   return medium ?? NONE;
 }

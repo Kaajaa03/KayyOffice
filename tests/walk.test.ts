@@ -48,3 +48,17 @@ describe('walkPath / pointAlong', () => {
     expect(pointAlong([{ x: 3, y: 4 }], 0.7)).toMatchObject({ x: 3, y: 4 });
   });
 });
+
+describe('reduced motion', () => {
+  it('doneTimeline relocates instantly: coffee first, then lounge, never walking', () => {
+    expect(doneTimeline(0, true).phase).toBe('coffee');
+    expect(doneTimeline(WALK_MS / 2, true).phase).toBe('coffee');
+    expect(doneTimeline(WALK_MS + COFFEE_MS - 1, true).phase).toBe('coffee');
+    expect(doneTimeline(WALK_MS + COFFEE_MS + 1, true)).toEqual({ phase: 'lounge', t: 1 });
+  });
+  it('isWalking is always false', () => {
+    const a: Agent = { id: 'a', sessionId: 'a', cwd: 'x', status: 'done', lastEventTs: 1000 };
+    expect(isWalking(a, 1500)).toBe(true);
+    expect(isWalking(a, 1500, true)).toBe(false);
+  });
+});

@@ -6,9 +6,8 @@ import type { Agent } from '../shared/types';
 import { P, WALL_H, CLUSTER_W, PAD, KITCHEN_W } from './room';
 import type { Room, Seat } from './room';
 import type { DayPhase } from './sun';
-import { labelFor, pillLines } from './pill';
-
-export { labelFor };
+import { pillLines } from './pill';
+import type { Lang } from '../shared/i18n';
 
 export const HEADER_H = 18;
 export const FOOTER_H = 20;
@@ -655,8 +654,8 @@ export const PILL_H = 21;
 const PILL_MAX = 72;
 
 /** Lumio-style name pill centred at css (cx, top). */
-export function drawPill(c: Ctx, agent: Agent, cx: number, top: number, dpr: number): void {
-  const p = pillLines(agent);
+export function drawPill(c: Ctx, agent: Agent, cx: number, top: number, dpr: number, lang: Lang): void {
+  const p = pillLines(agent, lang);
   const chip = modelChip(agent.model);
   const extra = 12 + (chip ? 12 : 0);
   const title = fit(p.title, PILL_TITLE, PILL_MAX - extra);
