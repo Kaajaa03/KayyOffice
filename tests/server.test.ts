@@ -1,4 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
+import http from 'node:http';
 import { randomBytes } from 'node:crypto';
 import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -130,5 +131,55 @@ describe('server /permission', () => {
     await send('mod');
     await send('weird');
     expect(seen).toEqual(['mod', undefined]);
+  });
+});
+
+describe('server Host check (DNS rebinding)', () => {
+  /** Raw request so the Host header can be chosen freely. */
+  function rawPost(port: number, host: string | undefined, body: string, endBody = true): Promise<number> {
+    return new Promise((resolve, reject) => {
+      const nonce = randomBytes(16).toString('hex');
+      const headers: Record<string, string | number> = {
+        'x-kayy-nonce': nonce, 'x-kayy-auth': requestAuth(TOKEN, nonce, '/event', body), 'content-length': Buffer.byteLength(body),
+      };
+      if (host !== undefined) headers.host = host;
+      const req = http.request({ host: '127.0.0.1', port, path: '/event', method: 'POST', headers }, (res) => { res.resume(); resolve(res.statusCode!); req.destroy(); });
+      req.on('error', reject);
+      if (endBody) req.end(body); else req.write(body.slice(0, 1)); // never finishes the body
+    });
+  }
+  const body = JSON.stringify(good);
+
+  it.each([['127.0.0.1'], ['localhost']])('accepts Host %s:<port>', async (name) => {
+    const got: AgentEvent[] = [];
+    const s = await start(48101, (e) => got.push(e));
+    expect(await rawPost(s.port, `${name}:${s.port}`, body)).toBe(204);
+    expect(got).toHaveLength(1);
+  });
+  it.each([
+    ['a foreign name', 'evil.example:PORT'],
+    ['a rebound name with the right port', 'localhost.evil.example:PORT'],
+    ['the right name, wrong port', '127.0.0.1:1'],
+    ['no port', '127.0.0.1'],
+    ['a prefix trick', '127.0.0.1:PORTX'],
+    ['a different loopback literal', '[::1]:PORT'],
+  ])('answers 421 and no onEvent for %s', async (_n, host) => {
+    const got: AgentEvent[] = [];
+    const s = await start(48102, (e) => got.push(e));
+    expect(await rawPost(s.port, host.replace('PORT', String(s.port)), body)).toBe(421);
+    expect(got).toHaveLength(0);
+  });
+  it('answers 421 before the body has arrived', async () => {
+    const s = await start(48103);
+    expect(await rawPost(s.port, 'evil.example', body, false)).toBe(421);
+  });
+  it('checks against the real port after a port fallback', async () => {
+    const blocker = http.createServer();
+    await new Promise<void>((r) => blocker.listen(48104, '127.0.0.1', r));
+    closers.push(() => new Promise<void>((r) => { blocker.close(() => r()); blocker.closeAllConnections(); }));
+    const s = await start(48104);
+    expect(s.port).not.toBe(48104);
+    expect(await rawPost(s.port, '127.0.0.1:48104', body)).toBe(421);
+    expect(await rawPost(s.port, `127.0.0.1:${s.port}`, body)).toBe(204);
   });
 });

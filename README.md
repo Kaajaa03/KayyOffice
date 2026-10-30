@@ -48,6 +48,7 @@ npm start            # Build + App starten (Tray-Icon unten rechts)
 ```
 Tray-Menü: **Hooks installieren** (trägt Hooks nicht-destruktiv in `~/.claude/settings.json` ein, mit Backup), **Hooks entfernen**, Dev-Log/Wochen-Recap, Rollen, Wach-bleiben, Autostart (nur installierte Version).
 Hotkey **Ctrl+Alt+O** blendet das Overlay ein/aus. Neue Claude-Code-Sessions nutzen die Hooks automatisch. Voraussetzung: `node` im PATH.
+Registrierte Hooks: `SessionStart`, `PreToolUse`, `PostToolUse`, `PostToolUseFailure` (fehlgeschlagenes Tool ⇒ roter Zustand, nie der Fehlertext), `Notification`, `Stop`, `SubagentStart`, `SubagentStop`, `SessionEnd` und `PermissionRequest` (blockierend, 25 s Hook-Timeout). Schreibzugriffe auf `settings.json` sind atomar; je Datei bleiben die 5 neuesten Backups (`.kayy-backup-*`).
 
 ## Rollen und Projekte
 `%APPDATA%\KayyOffice\roles.json` (wird beim ersten Start mit Beispielen angelegt, Tray → „Rollen neu laden“):
@@ -57,10 +58,10 @@ Hotkey **Ctrl+Alt+O** blendet das Overlay ein/aus. Neue Claude-Code-Sessions nut
 `namePattern` (Regex) trifft auf Agent-ID und Subagent-Typ, `cwdContains` auf den Arbeitsordner. Erster Treffer gewinnt. Agents desselben Projekts (letzter Ordner von `cwd`) sitzen zusammen in einem Raum.
 
 ## Permissions im Overlay
-Der `PermissionRequest`-Hook fragt die App. Klick auf **Allow/Deny** entscheidet. Keine Antwort in 25 s, App aus oder Fehler ⇒ ganz normaler Claude-Code-Prompt.
+Der `PermissionRequest`-Hook fragt die App. Klick auf **Allow/Deny** entscheidet. Keine Antwort in 20 s, App aus oder Fehler ⇒ ganz normaler Claude-Code-Prompt.
 
 ## Dev-Log
-Events werden pro Tag als JSONL unter `%APPDATA%\KayyOffice\logs` gesammelt (ohne LLM). Tray → „Dev-Log (heute) öffnen“ erzeugt Markdown, Zielordner per `devLogDir` in `config.json` einstellbar (z. B. Obsidian-Vault).
+Events werden pro Tag als JSONL unter `%APPDATA%\KayyOffice\logs` gesammelt (ohne LLM), Dateien älter als 30 Tage werden beim Start gelöscht. Tray → „Dev-Log (heute) öffnen“ erzeugt Markdown, Zielordner per `devLogDir` in `config.json` einstellbar (z. B. Obsidian-Vault).
 
 ## Entwicklung
 ```bash
@@ -74,3 +75,6 @@ Demo ohne Agents: `electron . --demo` (optional `--screenshot=out.png`).
 
 ## Roadmap
 Orchestrator-Mod (Chats sprechen miteinander, mit Turn-Limit), weitere Tools (Codex, Cursor) als Adapter, Tauri-Portierung für noch weniger RAM, Antworten aus dem Overlay.
+
+## Diagnose
+`%APPDATA%\KayyOffice\app.log` (Tray → Diagnose-Log anzeigen): einzeilige Meldungen zu Fehlern der App, max. 256 KB plus `app.log.1`; keine Tokens, Befehle oder Tool-Ausgaben. Der lokale Server akzeptiert nur Anfragen mit `Host: 127.0.0.1:<Port>` bzw. `localhost:<Port>` (Schutz gegen DNS-Rebinding).

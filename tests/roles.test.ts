@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -63,5 +63,29 @@ describe('groupByProject', () => {
     const g = groupByProject([ag('a'), ag('b'), ag('c', { cwd: 'C:\\dev\\Other' })]);
     expect(g.Proj.map((x) => x.id)).toEqual(['a', 'b']);
     expect(Object.keys(g).sort()).toEqual(['Other', 'Proj']);
+  });
+});
+
+describe('role regex handling', () => {
+  afterEach(() => vi.restoreAllMocks());
+  const file = (content: string) => {
+    const p = join(mkdtempSync(join(tmpdir(), 'kayy-roles-')), 'roles.json');
+    writeFileSync(p, content);
+    return p;
+  };
+  it('only tests the first 200 characters of id + name', () => {
+    const r = [{ match: { namePattern: 'review' }, role: 'Reviewer', color: '#ffa94d' }];
+    expect(assignRole(ag('x'.repeat(300) + ' review', { cwd: 'C:\o' }), r)).toEqual({});
+    expect(assignRole(ag('review' + 'x'.repeat(300), { cwd: 'C:\o' }), r).role).toBe('Reviewer');
+  });
+  it('compiles each pattern once at load, not on every assignRole call', () => {
+    const loaded = loadRoles(file(JSON.stringify([{ match: { namePattern: 'review|audit' }, role: 'R', color: '#ffa94d' }])));
+    const Real = RegExp;
+    let constructed = 0;
+    vi.stubGlobal('RegExp', new Proxy(Real, { construct(t, a) { constructed++; return Reflect.construct(t, a); } }));
+    try {
+      for (let i = 0; i < 50; i++) assignRole(ag('code-reviewer', { cwd: 'C:\o' }), loaded);
+    } finally { vi.unstubAllGlobals(); }
+    expect(constructed).toBe(0);
   });
 });

@@ -256,9 +256,9 @@ tests/*.test.ts
 **Interfaces:**
 - Consumes: Server (Task 4), Hook (Task 5)
 - Produces:
-  - `class PermissionQueue { add(req: { id: string; agentId: string; tool: string; summary: string }): Promise<'allow'|'deny'|'ask'>; resolve(id: string, d: 'allow'|'deny'): void; pending(): PermissionRequestInfo[] }` – nicht beantwortete Anfragen laufen nach `PERMISSION_TIMEOUT_MS = 25000` auf `'ask'` (= normaler Claude-Code-Prompt).
+  - `class PermissionQueue { add(req: { id: string; agentId: string; tool: string; summary: string }): Promise<'allow'|'deny'|'ask'>; resolve(id: string, d: 'allow'|'deny'): void; pending(): PermissionRequestInfo[] }` – nicht beantwortete Anfragen laufen nach `PERMISSION_TIMEOUT_MS = 20000` auf `'ask'` (= normaler Claude-Code-Prompt).
   - Server: `POST /permission` hält die Verbindung offen, bis `PermissionQueue` entscheidet, und antwortet `{ decision }`.
-  - `hook.js` im Blocking-Modus (Hook-Event `PermissionRequest`): sendet `/permission`, wartet max. 25 s, schreibt bei `allow`/`deny` das Hook-Ergebnis-JSON auf stdout, bei `ask`/Fehler nichts (⇒ normaler Prompt).
+  - `hook.js` im Blocking-Modus (Hook-Event `PermissionRequest`): sendet `/permission`, wartet max. 22 s, schreibt bei `allow`/`deny` das Hook-Ergebnis-JSON auf stdout, bei `ask`/Fehler nichts (⇒ normaler Prompt).
   - Overlay: wartender Agent steht auf, Glow; Klick auf Figur öffnet Mini-Panel mit **Erlauben / Ablehnen** (Tool + Kurzfassung); nur dieser Bereich ist klickbar (Mouse-Forwarding per `setIgnoreMouseEvents` umschalten).
 
 - [ ] **Step 1: Verifizieren:** Schema des `PermissionRequest`-Hooks in der aktuellen Claude-Code-Dokumentation prüfen (Eingabefelder, Ausgabeformat `decision.behavior`); **Abweichung zur Spec** (dort PreToolUse) in der Spec vermerken und committen.

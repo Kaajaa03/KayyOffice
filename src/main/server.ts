@@ -55,7 +55,11 @@ function parsePermission(raw: unknown): PermissionPayload | null {
 
 export function startServer(opts: ServerOptions): Promise<RunningServer> {
   const nonces = new NonceCache();
+  // Set once listening. Browsers always send the Host they navigated to, so a rebound DNS name
+  // (evil.example -> 127.0.0.1) is refused here before any body is read.
+  let allowedHosts: string[] = [];
   const server = http.createServer((req, res) => {
+    if (!allowedHosts.includes(req.headers.host ?? '')) return void res.writeHead(421, { Connection: 'close' }).end();
     const route = req.url;
     if (req.method !== 'POST' || (route !== '/event' && route !== '/permission')) return void res.writeHead(404).end();
 
@@ -111,6 +115,7 @@ export function startServer(opts: ServerOptions): Promise<RunningServer> {
     server.on('listening', () => {
       server.off('error', onError);
       const a = server.address() as AddressInfo;
+      allowedHosts = [`127.0.0.1:${a.port}`, `localhost:${a.port}`];
       resolve({
         port: a.port,
         address: a.address,
