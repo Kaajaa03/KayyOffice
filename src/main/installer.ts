@@ -6,6 +6,7 @@ import { writeFileAtomic } from './fsutil';
 export const MARKER = '--kayy-office';
 const PERMISSION_HOOK_TIMEOUT_S = 25;
 const KEEP_BACKUPS = 5;
+const BOM = new RegExp('^' + String.fromCharCode(0xfeff));
 
 interface HookEntry { matcher?: string; hooks?: Array<{ type: string; command?: string; timeout?: number }> }
 type Settings = { hooks?: Record<string, HookEntry[]> } & Record<string, unknown>;
@@ -15,7 +16,7 @@ const isOurs = (e: HookEntry) => !!e.hooks?.some((h) => h.command?.includes(MARK
 function readSettings(path: string): Settings {
   if (!existsSync(path)) return {};
   try {
-    const text = readFileSync(path, 'utf8').replace(/^FEFF/, '');
+    const text = readFileSync(path, 'utf8').replace(BOM, '');
     if (!text.trim()) return {};
     const parsed = JSON.parse(text);
     if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) throw new Error('not an object');

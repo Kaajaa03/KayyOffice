@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { mkdtempSync, readFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, readFileSync, existsSync, readdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { EventLog, renderDevLog, weekSummary, writeDevLog, writeWeekLog, localDate } from '../src/main/log';
+import { EventLog, renderDevLog, weekSummary, writeDevLog, writeWeekLog, localDate, selectExpired, pruneLogs } from '../src/main/log';
 import type { AgentEvent } from '../src/shared/types';
 
 const T0 = new Date(2026, 9, 29, 10, 0, 0).getTime(); // local 2026-10-29 10:00
@@ -98,4 +98,25 @@ describe('renderDevLog / weekSummary / writeDevLog', () => {
     expect(readFileSync(file, 'utf8').match(/^# Dev-Log /gm)).toHaveLength(7);
   });
   it('localDate formats local dates as YYYY-MM-DD', () => expect(localDate(T0)).toBe(DATE));
+});
+
+describe('log retention', () => {
+  const names = ['2026-09-29.jsonl', '2026-09-30.jsonl', '2026-10-15.jsonl', '2026-10-29.jsonl', 'notes.txt', '2026-09-01.md', 'x2026-01-01.jsonl'];
+  it('selects only day files older than keepDays (exactly keepDays old is kept)', () => {
+    expect(selectExpired(names, '2026-10-29', 30)).toEqual([]);
+    expect(selectExpired(names, '2026-10-30', 30)).toEqual(['2026-09-29.jsonl']);
+    expect(selectExpired(names, '2026-10-31', 30)).toEqual(['2026-09-29.jsonl', '2026-09-30.jsonl']);
+    expect(selectExpired(names, '2026-12-31', 30)).toEqual(['2026-09-29.jsonl', '2026-09-30.jsonl', '2026-10-15.jsonl', '2026-10-29.jsonl']);
+  });
+  it('counts days correctly across a DST change', () => {
+    expect(selectExpired(['2026-03-01.jsonl'], '2026-03-31', 30)).toEqual([]);
+    expect(selectExpired(['2026-03-01.jsonl'], '2026-04-01', 30)).toEqual(['2026-03-01.jsonl']);
+  });
+  it('pruneLogs deletes expired files from disk, keeps the rest, and tolerates a missing dir', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'kayy-prune-'));
+    for (const n of names) writeFileSync(join(dir, n), '{}');
+    expect(pruneLogs(dir, '2026-10-30', 30)).toEqual(['2026-09-29.jsonl']);
+    expect(readdirSync(dir).sort()).toEqual(names.filter((n) => n !== '2026-09-29.jsonl').sort());
+    expect(pruneLogs(join(dir, 'nope'), '2026-10-29', 30)).toEqual([]);
+  });
 });

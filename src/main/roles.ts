@@ -33,11 +33,25 @@ function valid(r: unknown): r is RoleDef {
   return true;
 }
 
+const MAX_MATCH_CHARS = 200; // bounds the cost of a user-supplied (possibly nasty) regex
+const patterns = new WeakMap<RoleDef, RegExp | null>();
+
+function patternOf(r: RoleDef): RegExp | null {
+  let re = patterns.get(r);
+  if (re === undefined) {
+    re = r.match.namePattern === undefined ? null : new RegExp(r.match.namePattern, 'i');
+    patterns.set(r, re);
+  }
+  return re;
+}
+
 export function loadRoles(path: string): RoleDef[] {
   if (!existsSync(path)) return [];
   try {
     const parsed = JSON.parse(readFileSync(path, 'utf8'));
-    return Array.isArray(parsed) ? parsed.filter(valid) : [];
+    const roles = Array.isArray(parsed) ? parsed.filter(valid) : [];
+    roles.forEach(patternOf); // compile once, up front
+    return roles;
   } catch {
     return [];
   }
@@ -51,7 +65,7 @@ export function ensureDefaultRoles(path: string): void {
 export function assignRole(agent: Agent, roles: RoleDef[]): { role?: string; color?: string; sprite?: string } {
   const name = agent.name ?? agent.id;
   for (const r of roles) {
-    const byName = r.match.namePattern !== undefined && new RegExp(r.match.namePattern, 'i').test(`${agent.id} ${name}`);
+    const byName = patternOf(r)?.test(`${agent.id} ${name}`.slice(0, MAX_MATCH_CHARS)) ?? false;
     const byCwd = r.match.cwdContains !== undefined && agent.cwd.toLowerCase().includes(r.match.cwdContains.toLowerCase());
     if (byName || byCwd) return { role: r.role, color: r.color, ...(r.sprite ? { sprite: r.sprite } : {}) };
   }

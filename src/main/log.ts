@@ -1,4 +1,4 @@
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { projectOf } from '../shared/project';
 import { toolCategory } from '../shared/types';
@@ -8,6 +8,8 @@ export interface AgentDay { toolCalls: number; activeMs: number; projects: strin
 export interface DaySummary { date: string; perAgent: Record<string, AgentDay> }
 
 const FLUSH_MS = 10_000;
+export const LOG_KEEP_DAYS = 30;
+const DAY_FILE = /^(\d{4})-(\d{2})-(\d{2})\.jsonl$/;
 
 const pad = (n: number) => String(n).padStart(2, '0');
 export function localDate(ts: number): string {
@@ -132,4 +134,27 @@ export function writeWeekLog(dir: string, endDate: string, log: EventLog): strin
   const file = join(dir, `kayy-week-${endDate}.md`);
   writeFileSync(file, weekSummary(endDate, log).map(renderDevLog).join('\n---\n\n'));
   return file;
+}
+
+const dayNumber = (y: number, m: number, d: number) => Math.floor(Date.UTC(y, m - 1, d) / 86_400_000); // UTC: DST-proof
+
+/** Day files (YYYY-MM-DD.jsonl) strictly older than keepDays; anything else is left alone. */
+export function selectExpired(names: string[], today: string, keepDays: number): string[] {
+  const [ty, tm, td] = today.split('-').map(Number);
+  const limit = dayNumber(ty, tm, td) - keepDays;
+  return names.filter((n) => {
+    const m = DAY_FILE.exec(n);
+    return !!m && dayNumber(Number(m[1]), Number(m[2]), Number(m[3])) < limit;
+  });
+}
+
+/** Deletes expired JSONL day files; returns what was removed. A missing dir is not an error. */
+export function pruneLogs(dir: string, today: string, keepDays = LOG_KEEP_DAYS): string[] {
+  let names: string[];
+  try { names = readdirSync(dir); } catch { return []; /* no logs yet */ }
+  const removed: string[] = [];
+  for (const n of selectExpired(names, today, keepDays)) {
+    try { unlinkSync(join(dir, n)); removed.push(n); } catch { /* in use: next start retries */ }
+  }
+  return removed;
 }
