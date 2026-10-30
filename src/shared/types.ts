@@ -37,6 +37,15 @@ export interface AgentEvent {
   file?: string;
   /** Session cost so far in USD (reported on session-level events). */
   costUsd?: number;
+  /** Task-list progress (TodoWrite): completed / total and the task in progress. */
+  progress?: Progress;
+}
+
+export interface Progress {
+  done: number;
+  total: number;
+  /** The task currently in progress (display text, max 80 chars). */
+  current?: string;
 }
 
 export type AgentStatus = 'idle' | 'working' | 'waiting' | 'done' | 'error';
@@ -60,6 +69,8 @@ export interface Agent {
   /** File the agent is currently working on (cleared on Stop / next tool). */
   file?: string;
   costUsd?: number;
+  /** Task-list progress; kept until the agent stops or a new session starts. */
+  progress?: Progress;
 }
 
 export type PermissionDecision = 'allow' | 'deny' | 'ask';

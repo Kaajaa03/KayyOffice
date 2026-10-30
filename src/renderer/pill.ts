@@ -25,7 +25,13 @@ export function labelFor(a: Agent, lang: Lang): string {
   return projectName(a);
 }
 
-interface PillLines { title: string; sub: string; dot: string }
+interface PillLines {
+  title: string;
+  sub: string;
+  dot: string;
+  /** Share of completed tasks (0..1) when the agent reported a task list. */
+  progress?: number;
+}
 
 export function pillLines(a: Agent, lang: Lang): PillLines {
   let sub = t(lang, SUB[a.status]);
@@ -33,9 +39,10 @@ export function pillLines(a: Agent, lang: Lang): PillLines {
   if (a.status === 'waiting' && a.message?.startsWith('Entscheidung')) sub = t(lang, 'pill.decision');
   if (a.status === 'working') {
     const file = a.file?.split(/[\\/]/).filter(Boolean).pop();
-    sub = file ?? t(lang, CATEGORY[a.category ?? 'other']);
+    sub = a.progress?.current ?? file ?? t(lang, CATEGORY[a.category ?? 'other']);
   }
-  return { title: trunc(labelFor(a, lang), 14), sub: trunc(sub, 16), dot: STATUS_DOT[a.status] };
+  const progress = a.progress ? a.progress.done / a.progress.total : undefined;
+  return { title: trunc(labelFor(a, lang), 14), sub: trunc(sub, 16), dot: STATUS_DOT[a.status], progress };
 }
 
 function askerBase(a: Agent, lang: Lang): string {

@@ -29,6 +29,7 @@ function upsert(state: AppState, e: AgentEvent, patch: Partial<Agent>): AppState
     model: e.model ?? prev?.model,
     costUsd: e.costUsd ?? prev?.costUsd,
     file: e.file ?? prev?.file,
+    progress: e.progress ?? prev?.progress,
     message: undefined,
     ...patch,
     lastEventTs: e.ts,
@@ -39,7 +40,7 @@ function upsert(state: AppState, e: AgentEvent, patch: Partial<Agent>): AppState
 export function reduce(state: AppState, e: AgentEvent): AppState {
   switch (e.event) {
     case 'SessionStart':
-      return upsert(state, e, { status: 'idle' });
+      return upsert(state, e, { status: 'idle', progress: undefined });
     case 'PreToolUse':
       return upsert(state, e, { status: 'working', category: toolCategory(e.tool), file: e.file });
     case 'PostToolUse':
@@ -48,7 +49,7 @@ export function reduce(state: AppState, e: AgentEvent): AppState {
     case 'Notification':
       return upsert(state, e, { status: 'waiting', message: e.message });
     case 'Stop':
-      return upsert(state, e, { status: 'done', file: undefined });
+      return upsert(state, e, { status: 'done', file: undefined, progress: undefined });
     case 'SubagentStart':
       return upsert(state, e, { status: 'working' });
     case 'SubagentStop':

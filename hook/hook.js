@@ -17,6 +17,28 @@ function configDir() {
   return process.env.KAYY_CONFIG_DIR || path.join(process.env.APPDATA || '', 'KayyOffice');
 }
 
+// C0/C1 controls and the Unicode line/paragraph separators must never reach a canvas label
+const CONTROL = new RegExp('[\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029]', 'g');
+
+// Task-list progress from a TodoWrite call (same rules as the overlay's validation and the mod).
+function todoProgress(input) {
+  const todos = input && Array.isArray(input.todos) ? input.todos : null;
+  if (!todos) return undefined;
+  let total = 0;
+  let doneCount = 0;
+  let current;
+  for (const t of todos) {
+    if (!t || typeof t !== 'object') continue;
+    if (t.status !== 'pending' && t.status !== 'in_progress' && t.status !== 'completed') continue;
+    total++;
+    if (t.status === 'completed') doneCount++;
+    else if (t.status === 'in_progress' && current === undefined) current = t.activeForm || t.content;
+  }
+  if (total < 1 || total > 99) return undefined;
+  const text = typeof current === 'string' ? current.replace(CONTROL, '').trim().slice(0, 80) : '';
+  return text ? { done: doneCount, total, current: text } : { done: doneCount, total };
+}
+
 function toEvent(h) {
   if (!h || typeof h !== 'object' || !h.hook_event_name || !h.session_id) return null;
   const sub = typeof h.agent_id === 'string' && h.agent_id ? h.agent_id : null;
@@ -37,6 +59,7 @@ function toEvent(h) {
     file: h.tool_input && typeof h.tool_input === 'object' ? cut(h.tool_input.file_path || h.tool_input.notebook_path, 200) : undefined,
     cwd: cut(h.cwd || '', 500),
     message,
+    progress: h.hook_event_name === 'PostToolUse' && h.tool_name === 'TodoWrite' ? todoProgress(h.tool_input) : undefined,
   };
 }
 

@@ -1,11 +1,13 @@
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { appLog } from './diag';
+import { t } from '../shared/i18n';
+import type { Lang } from '../shared/i18n';
 import { projectOf } from '../shared/project';
 import { toolCategory } from '../shared/types';
 import type { AgentEvent } from '../shared/types';
 
-export interface AgentDay { toolCalls: number; activeMs: number; projects: string[]; files: string[] }
+export interface AgentDay { toolCalls: number; activeMs: number; projects: string[]; files: string[]; tasksDone: number }
 export interface DaySummary { date: string; perAgent: Record<string, AgentDay> }
 
 const FLUSH_MS = 10_000;
@@ -32,7 +34,9 @@ export class EventLog {
     this.ingest(this.summary(date), e);
     if (this.dir) {
       const lines = this.buffer.get(date) ?? [];
-      lines.push(JSON.stringify({ ...e, message: undefined })); // message text may contain secrets: never persisted
+      // message and task text may contain secrets/names: never persisted; progress keeps only its numbers
+      const progress = e.progress && { done: e.progress.done, total: e.progress.total };
+      lines.push(JSON.stringify({ ...e, message: undefined, progress }));
       this.buffer.set(date, lines);
       this.timer ??= setTimeout(() => this.flush(), FLUSH_MS);
     }
@@ -74,7 +78,9 @@ export class EventLog {
   }
 
   private ingest(s: DaySummary, e: AgentEvent, open = this.open): void {
-    const a = (s.perAgent[e.agentId] ??= { toolCalls: 0, activeMs: 0, projects: [], files: [] });
+    const a = (s.perAgent[e.agentId] ??= { toolCalls: 0, activeMs: 0, projects: [], files: [], tasksDone: 0 });
+    // a new, shorter task list must not lower what was already completed today
+    if (e.progress) a.tasksDone = Math.max(a.tasksDone, e.progress.done);
     if (e.cwd) {
       const p = projectOf(e);
       if (!a.projects.includes(p)) a.projects.push(p);
@@ -104,22 +110,25 @@ export function weekSummary(endDate: string, log: EventLog): DaySummary[] {
   });
 }
 
-const minutes = (ms: number) => (ms < 60_000 ? `${Math.round(ms / 1000)} s` : `${Math.round(ms / 60_000)} min`);
+const duration = (ms: number, lang: Lang) =>
+  ms < 60_000 ? t(lang, 'unit.sec', { n: Math.round(ms / 1000) }) : t(lang, 'unit.min', { n: Math.round(ms / 60_000) });
 
-export function renderDevLog(s: DaySummary): string {
+export function renderDevLog(s: DaySummary, lang: Lang = 'de'): string {
   const byProject = new Map<string, Array<[string, AgentDay]>>();
   for (const [agent, d] of Object.entries(s.perAgent)) {
     for (const p of d.projects.length ? d.projects : ['(unknown)']) {
       byProject.set(p, [...(byProject.get(p) ?? []), [agent, d]]);
     }
   }
-  const out = [`# Dev-Log ${s.date}`, ''];
-  if (!byProject.size) out.push('_Keine Agent-Aktivität._');
+  const out = [`# ${t(lang, 'devlog.title', { date: s.date })}`, ''];
+  if (!byProject.size) out.push(t(lang, 'devlog.none'));
   for (const [project, agents] of byProject) {
     out.push(`## ${project}`);
     for (const [agent, d] of agents) {
-      const files = d.files?.length ? ` — Dateien: ${d.files.join(', ')}` : '';
-      out.push(`- **${agent}** — ${d.toolCalls} Tool-Calls, aktiv ${minutes(d.activeMs)}${files}`);
+      const parts = [t(lang, 'devlog.line', { n: d.toolCalls, time: duration(d.activeMs, lang) })];
+      if (d.tasksDone) parts.push(t(lang, 'devlog.tasks', { n: d.tasksDone }));
+      if (d.files?.length) parts.push(t(lang, 'devlog.files', { list: d.files.join(', ') }));
+      out.push(`- **${agent}** — ${parts.join(' — ')}`);
     }
     out.push('');
   }
@@ -127,17 +136,17 @@ export function renderDevLog(s: DaySummary): string {
 }
 
 // Prefixed names: the target dir may be a vault whose own notes are called <date>.md.
-export function writeDevLog(dir: string, s: DaySummary): string {
+export function writeDevLog(dir: string, s: DaySummary, lang: Lang = 'de'): string {
   mkdirSync(dir, { recursive: true });
   const file = join(dir, `kayy-devlog-${s.date}.md`);
-  writeFileSync(file, renderDevLog(s));
+  writeFileSync(file, renderDevLog(s, lang));
   return file;
 }
 
-export function writeWeekLog(dir: string, endDate: string, log: EventLog): string {
+export function writeWeekLog(dir: string, endDate: string, log: EventLog, lang: Lang = 'de'): string {
   mkdirSync(dir, { recursive: true });
   const file = join(dir, `kayy-week-${endDate}.md`);
-  writeFileSync(file, weekSummary(endDate, log).map(renderDevLog).join('\n---\n\n'));
+  writeFileSync(file, weekSummary(endDate, log).map((d) => renderDevLog(d, lang)).join('\n---\n\n'));
   return file;
 }
 

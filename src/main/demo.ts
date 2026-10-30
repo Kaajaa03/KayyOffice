@@ -8,8 +8,10 @@ export function demoState(now = Date.now()): AppState {
   ): Agent => ({ id, sessionId: extra.parentId ?? id, cwd, status, category, model, lastEventTs: now, ...extra });
   const list = [
     mk('planner', 'C:\\ai\\Claude', 'working', 'other', 'claude-opus-5-5', { costUsd: 0.84 }),
-    mk('coder', 'C:\\dev\\KayyOffice', 'working', 'code', 'claude-sonnet-5-5', { file: 'C:\\dev\\KayyOffice\\src\\main\\state.ts', costUsd: 1.32 }),
-    mk('tester', 'C:\\dev\\KayyOffice', 'working', 'terminal', 'claude-haiku-5-5', { costUsd: 0.07 }),
+    mk('coder', 'C:\\dev\\KayyOffice', 'working', 'code', 'claude-sonnet-5-5', {
+      file: 'C:\\dev\\KayyOffice\\src\\main\\state.ts', costUsd: 1.32, progress: { done: 3, total: 7, current: 'Reducer testen' },
+    }),
+    mk('tester', 'C:\\dev\\KayyOffice', 'working', 'terminal', 'claude-haiku-5-5', { costUsd: 0.07, progress: { done: 5, total: 6, current: 'Suite ausführen' } }),
     mk('researcher', 'C:\\dev\\site', 'working', 'browser', 'claude-haiku-5-5', { costUsd: 0.12 }),
     mk('reviewer', 'C:\\dev\\KayyOffice', 'waiting', undefined, 'claude-opus-5-5', { costUsd: 0.51 }),
     mk('deploy', 'C:\\dev\\infra', 'done', undefined, 'claude-sonnet-5-5', { costUsd: 0.2 }),

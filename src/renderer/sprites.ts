@@ -650,7 +650,7 @@ const fit = (text: string, font: string, max: number): string => {
 
 const PILL_TITLE = `700 9px ${FONT}`;
 const PILL_SUB = `600 8px ${FONT}`;
-export const PILL_H = 21;
+export const PILL_H = 23; // 2 px more than the text needs: room for the task-progress bar
 const PILL_MAX = 72;
 
 function pillParts(agent: Agent, lang: Lang) {
@@ -670,7 +670,8 @@ export const pillWidth = (agent: Agent, lang: Lang): number => pillParts(agent, 
 /** Lumio-style name pill centred at css (cx, top). */
 export function drawPill(c: Ctx, agent: Agent, cx: number, top: number, dpr: number, lang: Lang): void {
   const { p, chip, title, sub, subColor, w } = pillParts(agent, lang);
-  const cv = textCanvas(`pill|${title}|${sub}|${p.dot}|${chip?.letter}|${subColor}`, dpr, w, PILL_H, (q) => {
+  const bar = p.progress === undefined ? -1 : Math.round(p.progress * 100);
+  const cv = textCanvas(`pill|${title}|${sub}|${p.dot}|${chip?.letter}|${subColor}|${bar}`, dpr, w, PILL_H, (q) => {
     q.fillStyle = 'rgba(22,26,36,0.90)';
     q.beginPath();
     q.roundRect(0.5, 0.5, w - 1, PILL_H - 1, 6);
@@ -697,6 +698,13 @@ export function drawPill(c: Ctx, agent: Agent, cx: number, top: number, dpr: num
     q.fillStyle = subColor;
     q.font = PILL_SUB;
     q.fillText(sub, 5, 18.5);
+    if (p.progress !== undefined) {
+      const bw = w - 10;
+      q.fillStyle = 'rgba(255,255,255,0.14)';
+      q.fillRect(5, PILL_H - 4, bw, 2);
+      q.fillStyle = '#ffd43b';
+      q.fillRect(5, PILL_H - 4, Math.max(p.progress > 0 ? 1 : 0, Math.round(bw * p.progress)), 2);
+    }
   });
   c.drawImage(cv, Math.round(cx - w / 2), Math.round(top), w, PILL_H);
 }
