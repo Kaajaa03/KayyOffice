@@ -67,12 +67,19 @@
     .msg { margin-top:8px; font-size:13px; white-space:pre-wrap; color:var(--green); }
     .msg.err { color:var(--red); }
     .msg:empty { display:none; }
+    .intro { border-color:var(--gold); display:flex; gap:12px; align-items:center; justify-content:space-between; }
+    .intro[hidden] { display:none; }
+    .intro p { margin:0; }
     footer { display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; color:var(--dim); font-size:12.5px; padding:2px 4px 0; }
     kbd { background:#0b1020; border:1px solid var(--line); border-bottom-width:2px; border-radius:5px; padding:0 5px; font:12px Consolas, monospace; }
   </style>
 </head>
 <body>
   <h1><span data-i18n="set.title"></span> <span>●</span></h1>
+  <section class="intro" id="intro" hidden>
+    <p data-i18n="set.intro"></p>
+    <button id="intro-close" class="primary" data-i18n="set.intro.close"></button>
+  </section>
   <div class="msg err" id="load-error" role="alert"></div>
 
   <section aria-labelledby="h-display">
@@ -157,7 +164,6 @@
     <h2 id="h-tools" data-i18n="set.sec.tools"></h2>
     <div class="btns">
       <button data-action="demo" data-i18n="set.tool.demo" data-i18n-title="set.tool.demo.title"></button>
-      <button data-action="welcome" data-i18n="set.tool.welcome" data-i18n-title="set.tool.welcome.title"></button>
       <button data-action="devlog" data-i18n="set.tool.devlog" data-i18n-title="set.tool.devlog.title"></button>
       <button data-action="week" data-i18n="set.tool.week" data-i18n-title="set.tool.week.title"></button>
       <button data-action="roles" data-i18n="set.tool.roles" data-i18n-title="set.tool.roles.title"></button>

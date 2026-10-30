@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { hooksInstalled, tooltipText } from '../src/main/status';
+import { hooksInstalled } from '../src/main/installer';
+import { tooltipText } from '../src/main/tooltip';
 
 const entry = (command: string) => ({ hooks: [{ type: 'command', command }] });
 const settings = (hooks: unknown) => JSON.stringify({ model: 'x', hooks });

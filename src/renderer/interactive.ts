@@ -1,7 +1,5 @@
-/** Tracks whether the renderer last told main "the mouse is over a clickable control".
- *  Main resets click-through on hide/reload; the renderer must forget its belief at the same
- *  moment, otherwise the next hover over the same spot sends no message and the click falls
- *  through to the window underneath. */
+// Tracks whether main was last told "the mouse is over a clickable control". Main resets click-through on
+// hide/reload; we forget our belief at the same time, or the next hover over the same spot would send nothing.
 export class InteractiveSync {
   private on = false;
 

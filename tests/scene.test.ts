@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { DeskLayout, officeStats, rowCount } from '../src/renderer/scene';
+import { DeskLayout, officeStats, rowCount, seatAgents } from '../src/renderer/scene';
+import { roomLayout } from '../src/renderer/room';
 
 describe('officeStats', () => {
   const a = (id: string, o: Partial<Agent>): Agent => ({ id, sessionId: id, cwd: 'x', status: 'idle', lastEventTs: 1, ...o });
@@ -56,5 +57,17 @@ describe('DeskLayout', () => {
     expect(rowCount(l.layout([]))).toBe(0);
     expect(rowCount(l.layout(Array.from({ length: 5 }, (_, i) => ag('a' + i))))).toBe(1);
     expect(rowCount(new DeskLayout().layout(Array.from({ length: 13 }, (_, i) => ag('b' + i))))).toBe(2);
+  });
+});
+
+describe('seatAgents', () => {
+  it('labels clusters with their projects and counts desks beyond the room as overflow', () => {
+    const agents = { a: ag('a', { cwd: '/x/P1' }), b: ag('b', { cwd: '/x/P2' }), c: ag('c', { cwd: '/x/P1' }) };
+    const room = roomLayout(2);
+    const desks = [{ agentId: 'c', slot: 1 }, { agentId: 'a', slot: 0 }, { agentId: 'b', slot: 99 }];
+    const r = seatAgents(desks, agents, room);
+    expect(r.seated.map((x) => x.a.id)).toEqual(['a', 'c']);
+    expect(r.labels).toEqual(['P1']);
+    expect(r.overflow).toBe(1);
   });
 });

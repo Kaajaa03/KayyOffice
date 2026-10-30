@@ -5,7 +5,7 @@ import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { startServer } from '../src/main/server';
-import { loadConfig, saveConfigPort, updateConfig } from '../src/main/config';
+import { loadConfig, updateConfig } from '../src/main/config';
 import { requestAuth, responseProof } from '../src/main/auth';
 import type { AgentEvent } from '../src/shared/types';
 
@@ -38,7 +38,7 @@ describe('config', () => {
     expect(c1.token).toMatch(/^[0-9a-f]{64}$/);
     expect(c1.port).toBe(47821);
     expect(loadConfig(dir).token).toBe(c1.token);
-    saveConfigPort(dir, 47830);
+    updateConfig(dir, { port: 47830 });
     expect(JSON.parse(readFileSync(join(dir, 'config.json'), 'utf8')).port).toBe(47830);
   });
 });

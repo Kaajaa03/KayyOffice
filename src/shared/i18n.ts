@@ -1,4 +1,4 @@
-// Typed string tables (de primary, en) shared by main, overlay and welcome window.
+// Typed string tables (de primary, en) shared by main, overlay and settings window.
 export type Lang = 'de' | 'en';
 export const LANGS: readonly Lang[] = ['de', 'en'];
 
@@ -66,6 +66,8 @@ const de = {
   'set.sec.connection': 'Verbindung',
   'set.sec.system': 'System',
   'set.sec.tools': 'Werkzeuge',
+  'set.intro': 'Kayy Office zeigt deine Claude-Agents als Pixel-Büro am Bildschirmrand. Unter „Verbindung“ installierst du die Hooks, unter „Werkzeuge“ startest du die Demo.',
+  'set.intro.close': 'Verstanden',
   'set.language': 'Sprache',
   'set.language.title': 'Sprache von Büro, Tray und Fenstern',
   'set.size': 'Größe',
@@ -103,8 +105,6 @@ const de = {
   'set.awake.title': 'Verhindert, dass der PC schlafen geht, solange ein Agent arbeitet',
   'set.tool.demo': 'Demo (15 s)',
   'set.tool.demo.title': 'Zeigt 15 Sekunden ein Demo-Büro',
-  'set.tool.welcome': 'Willkommen / Hilfe',
-  'set.tool.welcome.title': 'Öffnet das Willkommensfenster',
   'set.tool.devlog': 'Dev-Log (heute)',
   'set.tool.devlog.title': 'Öffnet das Protokoll von heute als Markdown',
   'set.tool.week': 'Wochen-Recap',
@@ -121,8 +121,6 @@ const de = {
   'set.err.unavailable': 'Das ist hier nicht verfügbar.',
   'set.err.failed': 'Das hat nicht geklappt. Details stehen im Diagnose-Log.',
   'set.err.load': 'Die Einstellungen konnten nicht geladen werden. Fenster schließen und erneut öffnen.',
-  'welcome.language': 'Sprache',
-  'welcome.settings': 'Einstellungen öffnen',
   'tray.quit': 'Beenden',
   'tooltip.idle': 'Kayy Office – ruht',
   'tooltip.active': '{n} aktiv',
@@ -134,24 +132,9 @@ const de = {
   'dialog.noNode': 'ACHTUNG: "node" wurde nicht im PATH gefunden. Die Hooks brauchen Node.js, sonst melden sie Fehler.',
   'dialog.hooksRemoved': 'Hooks entfernt.',
   'dialog.demoRunning': 'Demo läuft 15 Sekunden – schau an den oberen Bildschirmrand.',
-  // welcome window
-  'welcome.sub': 'Dein Pixel-Büro für Claude-Agents. Läuft lokal, kostet keine Tokens.',
-  'welcome.step1.title': 'Verbinden',
-  'welcome.step1.textHtml': 'Trägt die Hooks in Claude Code ein (mit Backup). Danach neue Claude-Sessions starten. Noch besser: der Mod <b>kayy-office</b> liefert mehr (Modell, Kosten, Router).',
-  'welcome.step1.button': 'Hooks installieren',
-  'welcome.step2.title': 'Ansehen',
-  'welcome.step2.text': 'Zeigt 15 Sekunden ein Demo-Büro oben am Bildschirmrand, damit du siehst, wie es aussieht.',
-  'welcome.step2.button': 'Demo zeigen',
-  'welcome.step3.title': 'Bedienen',
-  'welcome.step3.textHtml': 'Das Büro erscheint oben mittig, sobald Agents arbeiten. Ein-/Ausblenden mit <kbd>Strg</kbd>+<kbd>Alt</kbd>+<kbd>O</kbd>. Größe, Transparenz, Position, Freigaben und alles Weitere stellst du in den Einstellungen ein (Tray-Icon unten rechts, evtl. im ^-Menü: Doppelklick). Freigaben beantwortest du direkt im Overlay mit Erlauben/Ablehnen.',
-  'welcome.close': "Los geht's",
   'welcome.status.hooksOn': 'Hooks installiert ✓',
   'welcome.status.hooksOff': 'Hooks nicht installiert ✗',
-  'welcome.status.mode': 'Freigabe-Modus: {mode}',
   'welcome.status.port': 'Overlay läuft auf Port {port}',
-  'mode.risky': 'riskant',
-  'mode.all': 'alle',
-  'mode.off': 'aus',
 } as const;
 
 export type Key = keyof typeof de;
@@ -215,6 +198,8 @@ const en: Record<Key, string> = {
   'set.sec.connection': 'Connection',
   'set.sec.system': 'System',
   'set.sec.tools': 'Tools',
+  'set.intro': 'Kayy Office shows your Claude agents as a pixel office at the edge of your screen. Install the hooks under "Connection", start the demo under "Tools".',
+  'set.intro.close': 'Got it',
   'set.language': 'Language',
   'set.language.title': 'Language of the office, tray and windows',
   'set.size': 'Size',
@@ -252,8 +237,6 @@ const en: Record<Key, string> = {
   'set.awake.title': 'Keeps the PC from sleeping while an agent is working',
   'set.tool.demo': 'Demo (15 s)',
   'set.tool.demo.title': 'Shows a demo office for 15 seconds',
-  'set.tool.welcome': 'Welcome / help',
-  'set.tool.welcome.title': 'Opens the welcome window',
   'set.tool.devlog': 'Dev log (today)',
   'set.tool.devlog.title': 'Opens today\'s log as Markdown',
   'set.tool.week': 'Weekly recap',
@@ -270,8 +253,6 @@ const en: Record<Key, string> = {
   'set.err.unavailable': 'That is not available here.',
   'set.err.failed': 'That did not work. Details are in the diagnostics log.',
   'set.err.load': 'The settings could not be loaded. Close the window and open it again.',
-  'welcome.language': 'Language',
-  'welcome.settings': 'Open settings',
   'tray.quit': 'Quit',
   'tooltip.idle': 'Kayy Office – idle',
   'tooltip.active': '{n} active',
@@ -282,23 +263,9 @@ const en: Record<Key, string> = {
   'dialog.noNode': 'WARNING: "node" was not found in PATH. The hooks need Node.js, otherwise they report errors.',
   'dialog.hooksRemoved': 'Hooks removed.',
   'dialog.demoRunning': 'The demo runs for 15 seconds – look at the top edge of your screen.',
-  'welcome.sub': 'Your pixel office for Claude agents. Runs locally, costs no tokens.',
-  'welcome.step1.title': 'Connect',
-  'welcome.step1.textHtml': 'Registers the hooks in Claude Code (with backup). Then start new Claude sessions. Even better: the <b>kayy-office</b> mod delivers more (model, cost, router).',
-  'welcome.step1.button': 'Install hooks',
-  'welcome.step2.title': 'Look',
-  'welcome.step2.text': 'Shows a demo office at the top edge of the screen for 15 seconds so you can see what it looks like.',
-  'welcome.step2.button': 'Show demo',
-  'welcome.step3.title': 'Use',
-  'welcome.step3.textHtml': 'The office appears at the top centre as soon as agents work. Show/hide with <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>O</kbd>. Size, transparency, position, approvals and everything else live in the settings (tray icon bottom right, maybe in the ^ menu: double-click). You answer approvals right in the overlay with Allow/Deny.',
-  'welcome.close': "Let's go",
   'welcome.status.hooksOn': 'Hooks installed ✓',
   'welcome.status.hooksOff': 'Hooks not installed ✗',
-  'welcome.status.mode': 'Approval mode: {mode}',
   'welcome.status.port': 'Overlay running on port {port}',
-  'mode.risky': 'risky',
-  'mode.all': 'all',
-  'mode.off': 'off',
 };
 
 const TABLES: Record<Lang, Record<Key, string>> = { de, en };

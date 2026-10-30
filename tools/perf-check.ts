@@ -9,12 +9,13 @@ const root = resolve(__dirname, '..');
 const electron = join(root, 'node_modules', 'electron', 'dist', 'electron.exe');
 const active = process.argv[2] === 'active';
 const seconds = 24;
-const out = join(mkdtempSync(join(tmpdir(), 'kayy-perf-')), 'perf.json');
+const tmp = mkdtempSync(join(tmpdir(), 'kayy-perf-')); // also the app's config dir: the real settings stay untouched
+const out = join(tmp, 'perf.json');
 
 const IDLE_CPU_MAX = 1; // percent
 const IDLE_RAM_MAX = 150; // MB (private bytes, all Electron processes)
 
-const app = spawn(electron, [root, `--perf=${out}`, `--perf-seconds=${seconds}`], { stdio: 'ignore' });
+const app = spawn(electron, [root, `--perf=${out}`, `--perf-seconds=${seconds}`, `--config-dir=${tmp}`], { stdio: 'ignore' });
 app.on('exit', () => {
   const r = JSON.parse(readFileSync(out, 'utf8'));
   console.log(JSON.stringify(r, null, 2));
@@ -26,6 +27,6 @@ app.on('exit', () => {
 
 if (active) {
   setTimeout(() => {
-    spawnSync('npx', ['tsx', 'tools/mock-events.ts', 'team'], { cwd: root, shell: true, env: { ...process.env, MOCK_SECONDS: String(seconds - 8) }, stdio: 'ignore' });
+    spawnSync('npx', ['tsx', 'tools/mock-events.ts', 'team'], { cwd: root, shell: true, env: { ...process.env, KAYY_CONFIG_DIR: tmp, MOCK_SECONDS: String(seconds - 8) }, stdio: 'ignore' });
   }, 4000);
 }

@@ -17,6 +17,11 @@ const el = <T extends HTMLElement = HTMLElement>(id: string) => document.getElem
 let lang: Lang = parseLanguage(new URLSearchParams(location.search).get('lang')) ?? 'de';
 let snap: SettingsSnapshot | null = null;
 
+// first run: the main process opens this window with ?intro=1 and a short welcome block on top
+const intro = el('intro');
+intro.hidden = !new URLSearchParams(location.search).has('intro');
+el('intro-close').addEventListener('click', () => { intro.hidden = true; });
+
 const percent = (v: number) => `${Math.round(v * 100)} %`;
 
 function showError(text: string): void {

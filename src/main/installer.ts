@@ -11,7 +11,16 @@ const BOM = new RegExp('^' + String.fromCharCode(0xfeff));
 interface HookEntry { matcher?: string; hooks?: Array<{ type: string; command?: string; timeout?: number; async?: boolean }> }
 type Settings = { hooks?: Record<string, HookEntry[]> } & Record<string, unknown>;
 
-const isOurs = (e: HookEntry) => !!e.hooks?.some((h) => h.command?.includes(MARKER));
+const isOurs = (e: HookEntry | null) => Array.isArray(e?.hooks) && e.hooks.some((h) => typeof h?.command === 'string' && h.command.includes(MARKER));
+
+/** True when the settings.json text registers at least one Kayy hook. Never throws. */
+export function hooksInstalled(settingsText: string | null): boolean {
+  if (!settingsText) return false;
+  try {
+    const hooks = (JSON.parse(settingsText.replace(BOM, '')) as { hooks?: unknown } | null)?.hooks;
+    return !!hooks && typeof hooks === 'object' && Object.values(hooks).some((entries) => Array.isArray(entries) && entries.some(isOurs));
+  } catch { return false; }
+}
 
 function readSettings(path: string): Settings {
   if (!existsSync(path)) return {};

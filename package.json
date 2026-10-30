@@ -1,6 +1,6 @@
 {
   "name": "kayy-office",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "private": true,
   "description": "Pixel office overlay for Claude Code agents (Windows)",
   "main": "dist/main.js",
@@ -8,9 +8,9 @@
     "build": "node esbuild.config.mjs",
     "start": "npm run build && electron .",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit",
     "check": "tsc --noEmit && vitest run",
     "mock": "tsx tools/mock-events.ts",
+    "icon": "tsx tools/make-icon.ts",
     "perf": "tsx tools/perf-check.ts",
     "dist": "npm run build && electron-builder"
   },

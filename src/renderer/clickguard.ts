@@ -1,5 +1,5 @@
-/** A card only accepts clicks once it has been visible for ARM_DELAY_MS, so a double click or a
- *  click meant for the window underneath can never approve a request the user has not read. */
+// Click guard: a card only accepts clicks after it was visible for ARM_DELAY_MS, so a double click or a
+// click meant for the window underneath can never approve a request the user has not read.
 export const ARM_DELAY_MS = 600;
 
 interface Target { id: string; decision: 'allow' | 'deny' }

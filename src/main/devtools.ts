@@ -1,5 +1,9 @@
+// Debug runs started by flags: --perf (sample CPU/RAM) and --screenshot (capture a window); both quit the app.
 import { app } from 'electron';
+import type { BrowserWindow } from 'electron';
 import { writeFileSync } from 'node:fs';
+
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Samples all Electron processes every 2 s, writes averages to outPath, then quits. */
 export function runPerf(seconds: number, outPath: string): void {
@@ -25,4 +29,17 @@ export function runPerf(seconds: number, outPath: string): void {
     }, null, 2));
     app.quit();
   }, seconds * 1000);
+}
+
+/** Saves a PNG of `win` (`wholePage`: the settings window's full scrolling page), then quits. */
+export async function screenshotAndQuit(win: BrowserWindow, path: string, wholePage: boolean): Promise<void> {
+  await wait(1500);
+  if (wholePage) {
+    const h = await win.webContents.executeJavaScript('document.documentElement.scrollHeight') as number;
+    win.setMaximumSize(0, 0);
+    win.setContentSize(560, h);
+    await wait(300);
+  }
+  writeFileSync(path, (await win.webContents.capturePage()).toPNG());
+  app.quit();
 }

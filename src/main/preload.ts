@@ -1,7 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { Lang } from '../shared/i18n';
 import type { AppState, PermissionRequestInfo } from '../shared/types';
-import type { WelcomeStatus } from './status';
 import type { ActionResult, SetResult, SettingsSnapshot } from './settings';
 
 contextBridge.exposeInMainWorld('kayy', {
@@ -26,8 +25,4 @@ contextBridge.exposeInMainWorld('kayy', {
     action: (name: string): Promise<ActionResult> => ipcRenderer.invoke('settings:action', name),
     onChanged: (cb: (s: SettingsSnapshot) => void) => ipcRenderer.on('settings:changed', (_e, s: SettingsSnapshot) => cb(s)),
   },
-  /** Welcome window buttons: 'install-hooks' | 'demo' | 'close'. Resolves with a status text. */
-  action: (name: string): Promise<string> => ipcRenderer.invoke('action', name),
-  /** Welcome window: live status rows (hooks, approval mode, port). */
-  status: (): Promise<WelcomeStatus> => ipcRenderer.invoke('status'),
 });

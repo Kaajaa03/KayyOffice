@@ -7,11 +7,11 @@ import { projectOf } from '../shared/project';
 import { toolCategory } from '../shared/types';
 import type { AgentEvent } from '../shared/types';
 
-export interface AgentDay { toolCalls: number; activeMs: number; projects: string[]; files: string[]; tasksDone: number }
-export interface DaySummary { date: string; perAgent: Record<string, AgentDay> }
+interface AgentDay { toolCalls: number; activeMs: number; projects: string[]; files: string[]; tasksDone: number }
+interface DaySummary { date: string; perAgent: Record<string, AgentDay> }
 
 const FLUSH_MS = 10_000;
-export const LOG_KEEP_DAYS = 30;
+const LOG_KEEP_DAYS = 30;
 const DAY_FILE = /^(\d{4})-(\d{2})-(\d{2})\.jsonl$/;
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -32,7 +32,7 @@ export class EventLog {
   append(e: AgentEvent): void {
     if (e.event === 'Roster') return; // available types, not activity: neither persisted nor counted
     const date = localDate(e.ts);
-    this.ingest(this.summary(date), e);
+    this.ingest(this.day(date), e);
     if (this.dir) {
       const lines = this.buffer.get(date) ?? [];
       // message and task text may contain secrets/names: never persisted; progress keeps only its numbers
@@ -60,6 +60,7 @@ export class EventLog {
     const known = this.days.get(date);
     if (known) return known;
     const s: DaySummary = { date, perAgent: {} };
+    this.days.set(date, s);
     const file = this.dir ? join(this.dir, `${date}.jsonl`) : null;
     if (file && existsSync(file)) {
       const open = new Map<string, number>();
@@ -67,14 +68,7 @@ export class EventLog {
         if (!line) continue;
         try { this.ingest(s, JSON.parse(line) as AgentEvent, open); } catch { /* skip corrupt line */ }
       }
-      this.days.set(date, s);
     }
-    return s;
-  }
-
-  private summary(date: string): DaySummary {
-    let s = this.days.get(date);
-    if (!s) { s = this.day(date); this.days.set(date, s); }
     return s;
   }
 

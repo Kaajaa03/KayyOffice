@@ -1,29 +1,28 @@
+// Renderer entry: holds the state from main, draws the office (cached static room + animated layer)
+// and wires mouse/IPC events (permission card clicks, title-strip drag, size steps).
 import type { Agent, AppState, PermissionRequestInfo } from '../shared/types';
-import { CARD_H, CARD_W, armDelay, drawPermissionCard } from './card';
-import type { Hit } from './card';
-import { DeskLayout, officeStats } from './scene';
-import { ClickGuard } from './clickguard';
-import { InteractiveSync } from './interactive';
-import { FrameGate, animTime, animationMode } from './loop';
 import { t } from '../shared/i18n';
 import type { Lang } from '../shared/i18n';
+import { agentDrawables, benchDrawables } from './agents';
+import type { BenchTag, Drawable } from './agents';
 import { benchPlan } from './bench';
+import { CARD_H, CARD_W, armDelay, drawPermissionCard } from './card';
+import type { Hit } from './card';
+import { ClickGuard } from './clickguard';
 import { footerParts } from './footer';
+import { InteractiveSync } from './interactive';
+import { FrameGate, animTime, animationMode } from './loop';
 import { askerLabel } from './pill';
 import { placePills } from './pillplace';
-import { projectOf } from '../shared/project';
 import { MAX_H, P, roomLayout } from './room';
-import type { Pt, Room, Seat } from './room';
+import type { Room } from './room';
+import { FOOTER_H, HEADER_H, paintFrame, paintRoom } from './roomPaint';
+import { DeskLayout, officeStats, seatAgents } from './scene';
+import type { OfficeStats } from './scene';
+import { drawWallLive } from './screens';
 import { dayPhase } from './sun';
 import type { DayPhase } from './sun';
-import { doneTimeline, pointAlong, walkPath } from './walk';
-import {
-  BENCH_TAG_H, CLOCK_Y, DISPLAY_Y, FOOTER_FONT, FOOTER_H, HEADER_FONT, HEADER_H, PILL_H, SMALL_FONT,
-  benchTagWidth, blit, bottomChairY, chairBackSprite, drawBenchTag, drawClockHands, drawHint, drawPill, drawScreen, drawText, drawTextRuns,
-  glowSprite, lookFor, monitorBackSprite, monitorBackY, monitorFrontY, paintFrame, paintRoom,
-  personSprite, pillWidth, r, wallItems,
-} from './sprites';
-import type { Pose } from './sprites';
+import { BENCH_TAG_H, FOOTER_FONT, HEADER_FONT, PILL_H, drawBenchTag, drawHint, drawPill, drawText, drawTextRuns, pillWidth } from './text';
 
 interface KayyApi {
   onHint(cb: (text: string | null) => void): void;
@@ -45,6 +44,7 @@ const ctx = canvas.getContext('2d')!;
 const layout = new DeskLayout();
 const gate = new FrameGate({ activeFps: 60, idleFps: 10 });
 const guard = new ClickGuard();
+const sync = new InteractiveSync();
 
 let state: AppState = { agents: {} };
 let lang: Lang = 'de';
@@ -53,7 +53,6 @@ let permissions: PermissionRequestInfo[] = [];
 let hits: Hit[] = [];
 let hover: Hit | null = null;
 let header: { x: number; w: number } | null = null; // the room's title strip (drag handle), in window px
-const sync = new InteractiveSync();
 let visible = true;
 let looping = false;
 
@@ -70,7 +69,7 @@ const clockDate = (): Date => {
   return d;
 };
 
-// Day phase is re-checked at most once a minute, and only when something redraws anyway.
+// The day phase is re-checked at most once a minute, and only when something redraws anyway.
 let phase: DayPhase = dayPhase(clockDate());
 let phaseAt = performance.now();
 function currentPhase(now: number): DayPhase {
@@ -78,19 +77,9 @@ function currentPhase(now: number): DayPhase {
   return phase;
 }
 
-// Static room layer: repainted only when size, day phase or seating changes.
+// Static room layer: repainted only when size, day phase, seating or labels change.
 const staticCanvas = document.createElement('canvas');
 let staticKey = '';
-
-function resize(): void {
-  const dpr = window.devicePixelRatio || 1;
-  canvas.width = Math.round(window.innerWidth * dpr);
-  canvas.height = Math.round(window.innerHeight * dpr);
-}
-
-const METER_COLOR = { ok: 'rgba(229,231,235,0.8)', warn: '#ffc078', high: '#ff8787' } as const;
-const footerRuns = (agents: Agent[]): Array<{ text: string; color: string }> =>
-  footerParts(agents, lang).map((p) => ({ text: p.text, color: METER_COLOR[p.level ?? 'ok'] }));
 
 function ensureStatic(room: Room, ph: DayPhase, occupied: Set<number>, labels: string[], dpr: number): void {
   const key = `${room.w}x${room.h}|${dpr}|${ph}|${[...occupied].sort((a, b) => a - b).join(',')}|${labels.join('/')}`;
@@ -107,145 +96,54 @@ function ensureStatic(room: Room, ph: DayPhase, occupied: Set<number>, labels: s
   paintRoom(c, room, ph, occupied, labels);
 }
 
-interface Drawable { z: number; draw: () => void; pill?: { x: number; top: number; agent: Agent } }
+const METER_COLOR = { ok: 'rgba(229,231,235,0.8)', warn: '#ffc078', high: '#ff8787' } as const;
+const footerRuns = (agents: Agent[]) => footerParts(agents, lang).map((p) => ({ text: p.text, color: METER_COLOR[p.level ?? 'ok'] }));
 
-const walkPose = (dir: string, frame: 0 | 1): Pose =>
-  dir === 'up' ? (frame ? 'back1' : 'back0') : dir === 'right' ? (frame ? 'sideR1' : 'sideR0') : dir === 'left' ? (frame ? 'sideL1' : 'sideL0') : (frame ? 'walk1' : 'walk0');
-
-/** Person, chair, monitor and effects of every seated agent, to be drawn in z order. */
-function agentDrawables(c: CanvasRenderingContext2D, room: Room, seated: Array<{ a: Agent; s: Seat }>, t: number, ph: DayPhase, dpr: number, still: boolean): Drawable[] {
-  const out: Drawable[] = [];
-  const wall = Date.now();
-  const night = ph === 'night' || ph === 'dusk';
-  const timeline = new Map(seated.filter(({ a }) => a.status === 'done').map(({ a }) => [a.id, doneTimeline(wall - a.lastEventTs, still)]));
-  const coffeeIdx = new Map<string, number>(), loungeIdx = new Map<string, number>();
-  for (const { a } of seated) {
-    const tl = timeline.get(a.id);
-    if (!tl) continue;
-    if (tl.phase === 'toCoffee' || tl.phase === 'coffee') coffeeIdx.set(a.id, coffeeIdx.size);
-    else loungeIdx.set(a.id, loungeIdx.size);
-  }
-
-  for (const { a, s } of seated) {
-    const look = lookFor(a);
-    const up = s.facing === 'up';
-    const screenOn = a.status === 'working' || a.status === 'error' || a.status === 'waiting';
-    if (up) {
-      const my = monitorFrontY(s);
-      out.push({ z: s.y - 1, draw: () => {
-        if (night && screenOn) { c.globalAlpha = 0.55; blit(c, glowSprite('rgba(140,190,255,0.9)', 14, dpr), s.x - 14, my - 9, dpr); c.globalAlpha = 1; }
-        drawScreen(c, a, s.x, my, t);
-      } });
-      out.push({ z: s.y + 15, draw: () => blit(c, chairBackSprite(dpr, ph), s.x - 6, bottomChairY(s), dpr) });
-    } else {
-      const my = monitorBackY(s);
-      out.push({ z: s.y + 10, draw: () => {
-        blit(c, monitorBackSprite(dpr, ph), s.x - 7, my, dpr);
-        const led = a.status === 'working' ? '#51cf66' : a.status === 'error' ? (Math.floor(t / 300) % 2 ? '#ff6b6b' : '#7f1d1d') : a.status === 'waiting' ? '#ffa94d' : '#6c7380';
-        r(c, s.x + 5, my + 7, 1, 1, led);
-      } });
-    }
-
-    const stand: Pt = up ? { x: s.x, y: s.y - 1 } : { x: s.x, y: s.y - 5 };
-    if (a.status === 'done') {
-      const tl = timeline.get(a.id)!;
-      const ci = coffeeIdx.get(a.id) ?? 0;
-      const coffee = { x: room.coffee.x + ci * 9, y: room.coffee.y + (ci % 2) * 2 };
-      const spot = room.loungeSpots[(loungeIdx.get(a.id) ?? 0) % room.loungeSpots.length];
-      let pos: Pt, pose: Pose, steam = false;
-      if (tl.phase === 'toCoffee') {
-        const w = pointAlong(walkPath(stand, coffee, s.aisleY), tl.t);
-        pos = w; pose = walkPose(w.dir, w.frame);
-      } else if (tl.phase === 'coffee') {
-        pos = coffee; pose = 'cup'; steam = !still;
-      } else if (tl.phase === 'toLounge') {
-        const w = pointAlong(walkPath(coffee, spot, room.wallAisleY), tl.t);
-        pos = w; pose = walkPose(w.dir, w.frame);
-      } else {
-        pos = spot; pose = 'lounge'; steam = !still;
-      }
-      const p = pos;
-      out.push({
-        z: p.y + 16,
-        draw: () => {
-          blit(c, personSprite(look, pose, dpr, ph), p.x - 4, p.y, dpr);
-          if (steam) {
-            const k = Math.floor(t / 300) % 3;
-            const cx = pose === 'cup' ? p.x + 3 : p.x;
-            c.globalAlpha = 0.75;
-            r(c, cx, p.y + 6 - k, 1, 1, '#ffffff');
-            r(c, cx + 1, p.y + 5 - ((k + 1) % 3), 1, 1, '#ffffff');
-            c.globalAlpha = 1;
-          }
-        },
-        pill: { x: p.x, top: p.y * P - PILL_H - 2, agent: a },
-      });
-      continue;
-    }
-
-    if (a.status === 'waiting') {
-      const bob = Math.floor(t / 350) % 2;
-      const p = { x: s.x + (up ? 11 : -11), y: stand.y - bob };
-      out.push({
-        z: stand.y + 16,
-        draw: () => {
-          c.globalAlpha = 0.45 + 0.25 * Math.sin(t / 250);
-          blit(c, glowSprite('rgba(255,169,77,0.85)', 16, dpr), p.x - 16, p.y - 6, dpr);
-          c.globalAlpha = 1;
-          blit(c, personSprite(look, 'stand', dpr, ph), p.x - 4, p.y, dpr);
-          r(c, p.x + 5, p.y - 6, 7, 7, '#ffffff');
-          r(c, p.x + 5, p.y + 1, 2, 1, '#ffffff');
-          r(c, p.x + 8, p.y - 5, 1, 3, '#e03131');
-          r(c, p.x + 8, p.y - 1, 1, 1, '#e03131');
-        },
-        pill: { x: p.x, top: (p.y - 7) * P - PILL_H, agent: a },
-      });
-      continue;
-    }
-
-    const typing = a.status === 'working' ? (still ? 1 : Math.floor(t / 130) % 2) : 0;
-    const pose: Pose = up ? (typing ? 'seatBack1' : 'seatBack0') : 'seatFront';
-    out.push({
-      z: up ? s.y + 14 : s.y + 9,
-      draw: () => {
-        blit(c, personSprite(look, pose, dpr, ph), s.x - 4, s.y, dpr);
-        if (!up && night && screenOn) { c.globalAlpha = 0.5; blit(c, glowSprite('rgba(150,200,255,0.9)', 7, dpr), s.x - 7, s.y - 2, dpr); c.globalAlpha = 1; }
-        if (a.status === 'error') {
-          const blink = Math.floor(t / 300) % 2;
-          r(c, s.x + 5, s.y + 1 + blink, 1, 2, '#74c0fc');
-          r(c, s.x - 1, s.y - 5, 2, 3, blink ? '#e03131' : '#ff8787');
-          r(c, s.x - 1, s.y - 1, 2, 1, blink ? '#e03131' : '#ff8787');
-        }
-      },
-      pill: up
-        ? { x: s.x, top: (bottomChairY(s) + 8) * P + 1, agent: a }
-        : { x: s.x, top: s.y * P - PILL_H - 2, agent: a },
-    });
-  }
-  return out;
+/** Title strip and footer text, in room coordinates (origin = room's left edge, window top). */
+function drawChrome(room: Room, agents: Agent[], st: OfficeStats, overflow: number, dpr: number): void {
+  const roomW = room.w * P;
+  const head = t(lang, 'room.stats', { working: st.working, waiting: st.waiting }) + (overflow ? `  ·  ${t(lang, 'room.overflow', { n: overflow })}` : '');
+  drawText(ctx, 'KAYY OFFICE', 42, 13, HEADER_FONT, '#9aa3b5', 'left', dpr);
+  drawText(ctx, head, roomW - 10, 13, HEADER_FONT, st.waiting ? '#ffc078' : '#dee2e6', 'right', dpr);
+  drawTextRuns(ctx, footerRuns(agents), roomW / 2, HEADER_H + room.h * P + 14, FOOTER_FONT, 'rgba(229,231,235,0.5)', dpr);
 }
 
-interface BenchTag { cx: number; top: number; w: number; name: string; chip: { letter: string; color: string } | null }
+/** Name pills and bench tags, nudged apart so crowded spots stay readable. */
+function drawLabels(items: Drawable[], tags: BenchTag[], room: Room, dpr: number): void {
+  const pills = items.flatMap((d) => (d.pill ? [d.pill] : []));
+  const spots = placePills(
+    [...pills.map((q) => ({ cx: q.x * P, top: q.top, w: pillWidth(q.agent, lang), h: PILL_H })), ...tags.map((q) => ({ cx: q.cx, top: q.top, w: q.w, h: BENCH_TAG_H }))],
+    { left: 0, right: room.w * P, top: 0, bottom: room.h * P + FOOTER_H / 2 },
+  );
+  pills.forEach((q, i) => drawPill(ctx, q.agent, spots[i].x, spots[i].top, dpr, lang));
+  tags.forEach((q, i) => drawBenchTag(ctx, q.name, q.chip, spots[pills.length + i].x, spots[pills.length + i].top, dpr));
+}
 
-/** Roster figures waiting on the lounge furniture (static pose, dimmed) and their compact labels. */
-function benchDrawables(c: CanvasRenderingContext2D, room: Room, agents: Agent[], ph: DayPhase, dpr: number): { items: Drawable[]; tags: BenchTag[] } {
-  const plan = benchPlan(state.roster, agents);
-  const items: Drawable[] = [];
-  const tags: BenchTag[] = [];
-  const tagAt = (x: number, y: number, name: string, chip: BenchTag['chip']): void =>
-    void tags.push({ cx: x * P, top: y * P - BENCH_TAG_H - 2, w: benchTagWidth(name, chip), name, chip });
-  plan.figures.forEach((f, i) => {
-    const spot = room.benchSpots[i];
-    const look = lookFor({ id: 'bench|' + f.type } as Agent);
-    items.push({ z: spot.y + 16, draw: () => {
-      c.globalAlpha = 0.62;
-      blit(c, personSprite(look, 'lounge', dpr, ph), spot.x - 4, spot.y, dpr);
-      c.globalAlpha = 1;
-    } });
-    tagAt(spot.x, spot.y, f.name, f.chip);
-  });
-  if (plan.more) tagAt(room.loungeX + 58, room.benchSpots[0].y, '+' + plan.more, null);
-  return { items, tags };
+/** The framed office; returns the panel height (the permission card goes below it). */
+function drawOffice(now: number, agents: Agent[], w: number, dpr: number): number {
+  const desks = layout.layout(agents);
+  const cardRoom = permissions.length ? CARD_H + 14 : 0;
+  const maxH = Math.min(MAX_H, Math.floor((window.innerHeight - HEADER_H - FOOTER_H - cardRoom) / P));
+  const room = roomLayout(Math.max(...desks.map((d) => d.slot)) + 1, Math.floor((w - 8) / P), maxH);
+  const ph = currentPhase(now);
+  const { seated, labels, overflow } = seatAgents(desks, state.agents, room);
+  ensureStatic(room, ph, new Set(seated.map((x) => x.s.slot)), labels, dpr);
+
+  const ox = Math.round((w - room.w * P) / 2);
+  header = { x: ox, w: room.w * P };
+  ctx.drawImage(staticCanvas, Math.round(ox * dpr), 0);
+
+  ctx.setTransform(dpr, 0, 0, dpr, ox * dpr, 0);
+  const st = officeStats(agents);
+  drawChrome(room, agents, st, overflow, dpr);
+
+  ctx.setTransform(dpr, 0, 0, dpr, ox * dpr, HEADER_H * dpr);
+  drawWallLive(ctx, room, clockDate(), st, lang, dpr);
+  const bench = benchDrawables(ctx, room, benchPlan(state.roster, agents), ph, dpr);
+  const items = [...agentDrawables(ctx, room, seated, animTime(now, reduced), ph, dpr, reduced), ...bench.items].sort((a, b) => a.z - b.z);
+  for (const d of items) d.draw();
+  drawLabels(items, bench.tags, room, dpr);
+  return HEADER_H + room.h * P + FOOTER_H;
 }
 
 function draw(now: number): void {
@@ -258,64 +156,9 @@ function draw(now: number): void {
   header = null;
   const agents = Object.values(state.agents);
   let panelH = 0;
-  if (agents.length) {
-    const desks = layout.layout(agents);
-    const maxSlot = Math.max(...desks.map((d) => d.slot));
-    const cardRoom = permissions.length ? CARD_H + 14 : 0;
-    const room = roomLayout(maxSlot + 1, Math.floor((w - 8) / P), Math.min(MAX_H, Math.floor((window.innerHeight - HEADER_H - FOOTER_H - cardRoom) / P)));
-    const ph = currentPhase(now);
-    const seated: Array<{ a: Agent; s: Seat }> = [];
-    const clusterProjects: string[][] = room.clusters.map(() => []);
-    let overflow = 0;
-    for (const d of desks.sort((x, y) => x.slot - y.slot)) {
-      const s = room.seats[d.slot];
-      const a = state.agents[d.agentId];
-      if (!s) { overflow++; continue; }
-      seated.push({ a, s });
-      const name = projectOf(a);
-      if (!clusterProjects[s.cluster].includes(name)) clusterProjects[s.cluster].push(name);
-    }
-    ensureStatic(room, ph, new Set(seated.map((x) => x.s.slot)), clusterProjects.map((p) => p.join(' · ')), dpr);
-
-    const ox = Math.round((w - room.w * P) / 2);
-    header = { x: ox, w: room.w * P };
-    const roomH = room.h * P;
-    ctx.drawImage(staticCanvas, Math.round(ox * dpr), 0);
-
-    // header + footer text
-    ctx.setTransform(dpr, 0, 0, dpr, ox * dpr, 0);
-    const st = officeStats(agents);
-    drawText(ctx, 'KAYY OFFICE', 42, 13, HEADER_FONT, '#9aa3b5', 'left', dpr);
-    const head = t(lang, 'room.stats', { working: st.working, waiting: st.waiting }) + (overflow ? `  ·  ${t(lang, 'room.overflow', { n: overflow })}` : '');
-    drawText(ctx, head, room.w * P - 10, 13, HEADER_FONT, st.waiting ? '#ffc078' : '#dee2e6', 'right', dpr);
-    drawTextRuns(ctx, footerRuns(agents), (room.w * P) / 2, HEADER_H + roomH + 14, FOOTER_FONT, 'rgba(229,231,235,0.5)', dpr);
-
-    // room content
-    ctx.setTransform(dpr, 0, 0, dpr, ox * dpr, HEADER_H * dpr);
-    const date = clockDate();
-    for (const it of wallItems(room)) {
-      if (it.kind === 'clock') drawClockHands(ctx, it.x + 6, CLOCK_Y, date);
-      if (it.kind === 'display') {
-        drawText(ctx, t(lang, 'room.displayWorking', { n: st.working }), (it.x + 3) * P, (DISPLAY_Y + 6) * P + 1, SMALL_FONT, '#69db7c', 'left', dpr);
-        drawText(ctx, t(lang, 'room.displayWaiting', { n: st.waiting }), (it.x + 3) * P, (DISPLAY_Y + 12) * P, SMALL_FONT, st.waiting ? '#ffa94d' : '#74c0fc', 'left', dpr);
-      }
-    }
-    const bench = benchDrawables(ctx, room, agents, ph, dpr);
-    const items = [...agentDrawables(ctx, room, seated, animTime(now, reduced), ph, dpr, reduced), ...bench.items].sort((a, b) => a.z - b.z);
-    for (const d of items) d.draw();
-    const pills = items.filter((d) => d.pill).map((d) => d.pill!);
-    const spots = placePills(
-      [...pills.map((q) => ({ cx: q.x * P, top: q.top, w: pillWidth(q.agent, lang), h: PILL_H })), ...bench.tags.map((q) => ({ cx: q.cx, top: q.top, w: q.w, h: BENCH_TAG_H }))],
-      { left: 0, right: room.w * P, top: 0, bottom: roomH + FOOTER_H / 2 },
-    );
-    pills.forEach((q, i) => drawPill(ctx, q.agent, spots[i].x, spots[i].top, dpr, lang));
-    bench.tags.forEach((q, i) => drawBenchTag(ctx, q.name, q.chip, spots[pills.length + i].x, spots[pills.length + i].top, dpr));
-    panelH = HEADER_H + roomH + FOOTER_H;
-  } else if (hint) {
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    drawHint(ctx, w, hint);
-  }
+  if (agents.length) panelH = drawOffice(now, agents, w, dpr);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  if (!agents.length && hint) drawHint(ctx, w, hint);
   if (permissions.length) {
     const req = permissions[0];
     const y = Math.min(panelH + 10, window.innerHeight - CARD_H - 4);
@@ -324,10 +167,12 @@ function draw(now: number): void {
   }
 }
 
+const redraw = (): void => safeDraw(performance.now());
 function safeDraw(now: number): void {
   try { draw(now); } catch (e) { console.error('draw failed', e); }
 }
 
+// fast = 60 fps rAF, slow = 10 fps timer, none = the last frame stays
 function frame(now: number): void {
   if (!visible) { looping = false; return; }
   const mode = animationMode(Object.values(state.agents), Date.now(), reduced);
@@ -390,20 +235,26 @@ window.addEventListener('wheel', (e) => {
   kayy.stepScale(e.deltaY < 0 ? 1 : -1);
 }, { passive: false });
 
-kayy.onState((s) => { state = s; wake(); safeDraw(performance.now()); });
+kayy.onState((s) => { state = s; wake(); redraw(); });
 kayy.onPermissions((p) => {
   permissions = p;
   guard.show(p[0]?.id ?? null, performance.now(), p[0] ? armDelay(p[0]) : undefined);
   if (!p.length && sync.active) { sync.reset(); hover = null; kayy.setInteractive(false); }
-  safeDraw(performance.now());
+  redraw();
 });
-kayy.onHint((text) => { hint = text; safeDraw(performance.now()); });
-kayy.onLanguage((l) => { lang = l; wake(); safeDraw(performance.now()); });
-motionQuery.addEventListener('change', (e) => { reduced = e.matches; wake(); safeDraw(performance.now()); });
+kayy.onHint((text) => { hint = text; redraw(); });
+kayy.onLanguage((l) => { lang = l; wake(); redraw(); });
+motionQuery.addEventListener('change', (e) => { reduced = e.matches; wake(); redraw(); });
 kayy.onVisibility((v) => {
   visible = v;
   if (!v) { sync.reset(); hover = null; drag = false; } // main resets click-through on hide; forget our belief too
   else wake();
 });
 window.addEventListener('resize', () => { resize(); staticKey = ''; draw(performance.now()); });
+
+function resize(): void {
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.round(window.innerWidth * dpr);
+  canvas.height = Math.round(window.innerHeight * dpr);
+}
 resize();

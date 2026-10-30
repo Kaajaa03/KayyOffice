@@ -61,7 +61,7 @@ export const meterLine = (m: { context: number | null; limit: { kind: string; pe
   return parts.length > 0 ? parts.join(' · ') : undefined
 }
 
-const cutTo =(s: string, n: number) => (s.length > n ? s.slice(0, Math.max(1, n - 1)) + '…' : s)
+const cutTo = (s: string, n: number) => (s.length > n ? s.slice(0, Math.max(1, n - 1)) + '…' : s)
 
 export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>, office: Office) {
   const { Box, Text, Button } = $.ui.resolve(e)

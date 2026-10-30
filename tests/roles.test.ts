@@ -2,7 +2,8 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { applyRoles, assignRole, groupByProject, loadRoles, projectOf } from '../src/main/roles';
+import { applyRoles, assignRole, loadRoles } from '../src/main/roles';
+import { projectOf } from '../src/shared/project';
 import type { Agent } from '../src/shared/types';
 
 const ag = (id: string, o: Partial<Agent> = {}): Agent => ({ id, sessionId: id, cwd: 'C:\\dev\\Proj', status: 'idle', lastEventTs: 1, ...o });
@@ -60,14 +61,9 @@ describe('applyRoles', () => {
   });
 });
 
-describe('groupByProject', () => {
+describe('projectOf', () => {
   it('uses the last folder of a Windows path', () => expect(projectOf(ag('a', { cwd: 'C:\\a\\b\\Proj' }))).toBe('Proj'));
   it('uses the last folder of a posix path with trailing slash', () => expect(projectOf(ag('a', { cwd: '/home/x/proj/' }))).toBe('proj'));
-  it('groups agents of the same cwd together', () => {
-    const g = groupByProject([ag('a'), ag('b'), ag('c', { cwd: 'C:\\dev\\Other' })]);
-    expect(g.Proj.map((x) => x.id)).toEqual(['a', 'b']);
-    expect(Object.keys(g).sort()).toEqual(['Other', 'Proj']);
-  });
 });
 
 describe('role regex handling', () => {

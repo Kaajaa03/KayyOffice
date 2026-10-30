@@ -1,12 +1,18 @@
 # Changelog
 
+## 1.2.1 – 2026-10-31
+Aufgeräumt, ohne neue Funktionen.
+- Das Willkommensfenster ist entfallen: Beim ersten Start öffnen sich die Einstellungen mit kurzer Einführung.
+- `main.ts` von 486 auf rund 150 Zeilen, aufgeteilt in `tray`, `ipc`, `ingest`, `office`, `actions`, `flags`; alle Kommandozeilen-Flags an einer Stelle.
+- Renderer-Code gekürzt und in thematische Module gegliedert; ungenutzte Exporte, tote Funktionen und doppelte Hilfen entfernt.
+- Alte Planungsdokumente, ungenutzte Screenshots und Konfigurationsreste gelöscht.
+
 ## 1.2.0 – 2026-10-30
 Größe und Einstellungen.
 - **Größe:** fünf Stufen (67, 100, 133, 167, 200 %), jeweils ganze Pixel für die Pixel-Kunst; Fenstergröße plus Seitenzoom, Mitte und Oberkante bleiben beim Wechsel, auf kleinen Bildschirmen automatisch begrenzt. Strg + Mausrad über der Titelleiste.
 - **Transparenz:** 50 bis 100 % in 5-%-Schritten (gilt auch für die Freigabe-Karte).
 - **Einstellungsfenster** (Tray-Menü oder Doppelklick auf das Tray-Icon): Sprache, Größe, Transparenz, Position, Freigaben, Verbindungsstatus (Hooks, Claude-Mod, Port) mit Installieren/Entfernen direkt im Fenster, Autostart, Wach bleiben, Werkzeuge. Alles wirkt sofort.
 - **Tray vereinfacht:** Anzeigen/Verstecken, Einstellungen…, Demo zeigen, Beenden.
-- **Willkommensfenster:** Sprachumschalter und Knopf „Einstellungen öffnen“.
 - Fehlertexte in Klartext (Details im Diagnose-Log); `roles.json` wird nach dem Speichern automatisch neu geladen.
 - Ziehen der Titelleiste folgt dem echten Mauszeiger (exakt bei jeder Größe). Debug-Flags `--settings`, `--scale`, `--lang`, `--config-dir`.
 
@@ -24,7 +30,7 @@ Effizienz und Bedienung.
 Polish-Release.
 - **Fortschritt pro Agent:** `TodoWrite` (Mod und Hook) → Balken und aktuelle Aufgabe am Namensschild, erledigte Aufgaben im Dev-Log.
 - **Look:** Pixel-Büro als ganzer Raum (Fliesen, Fenster mit echter Sonne, Küche, Lounge, Schreibtischgruppen, laufende Agents), Namensschilder ohne Überlappung, Layout für 1–40 Agents geprüft, App-Icon, zweisprachig (de/en), reduzierte Bewegung.
-- **Bedienung:** Willkommensfenster mit Status und Demo, Tray-Tooltip live, Freigabe-Modus (Standard: nur riskante Befehle), Diagnose-Log.
+- **Bedienung:** Tray-Tooltip live, Freigabe-Modus (Standard: nur riskante Befehle), Diagnose-Log.
 - **Härtung:** Fehlerzustand über `PostToolUseFailure`, atomare Schreibzugriffe und Backup-Rotation für `settings.json`/`config.json`, Host-Header-Prüfung (DNS-Rebinding), kürzere Timeouts, Log-Rotation, Click-through-Reset, kein Dauer-Timer, fertige Subagents räumen ihren Platz, strikte TypeScript-Prüfung, CI.
 
 ## 0.3.0 – 2026-10-30

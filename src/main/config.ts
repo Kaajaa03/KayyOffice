@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { appLog } from './diag';
 import { writeFileAtomic } from './fsutil';
 
-export interface Config {
+interface Config {
   token: string;
   port: number;
   devLogDir?: string;
@@ -27,7 +27,7 @@ export interface Config {
   hooksAdvice?: string;
 }
 
-export const DEFAULT_PORT = 47821;
+const DEFAULT_PORT = 47821;
 
 export function loadConfig(dir: string): Config {
   const file = join(dir, 'config.json');
@@ -50,8 +50,4 @@ export function loadConfig(dir: string): Config {
 export function updateConfig(dir: string, patch: Partial<Config>): void {
   const c = loadConfig(dir);
   writeFileAtomic(join(dir, 'config.json'), JSON.stringify({ ...c, ...patch }, null, 2));
-}
-
-export function saveConfigPort(dir: string, port: number): void {
-  updateConfig(dir, { port });
 }

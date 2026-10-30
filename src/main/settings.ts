@@ -26,7 +26,7 @@ export interface SettingsSnapshot {
   hotkey: string;
 }
 
-export type SetError = 'unknown' | 'invalid' | 'unavailable' | 'failed';
+type SetError = 'unknown' | 'invalid' | 'unavailable' | 'failed';
 export type SetResult = { ok: true } | { ok: false; error: SetError };
 
 /** Result of a settings-window button (install hooks, open a file, ...): a plain-language text to show inline. */
@@ -60,27 +60,15 @@ type Key = (typeof KEYS)[number];
 const isKey = (k: unknown): k is Key => typeof k === 'string' && (KEYS as readonly string[]).includes(k);
 
 export class SettingsModel {
-  private language: Lang;
-  private scale: number;
-  private opacity: number;
-  private placement: Placement | undefined;
-  private approvals: ApprovalMode;
-  private awake: boolean;
+  private v: SettingsDeps['initial'];
 
   constructor(private deps: SettingsDeps) {
-    const i = deps.initial;
-    this.language = i.language;
-    this.scale = i.scale;
-    this.opacity = i.opacity;
-    this.placement = i.placement;
-    this.approvals = i.approvals;
-    this.awake = i.awake;
+    this.v = { ...deps.initial };
   }
 
   snapshot(): SettingsSnapshot {
     return {
-      language: this.language, scale: this.scale, opacity: this.opacity, placement: this.placement,
-      approvals: this.approvals, awake: this.awake,
+      ...this.v,
       autostart: this.deps.autostartAvailable && this.deps.getAutostart(), autostartAvailable: this.deps.autostartAvailable,
       hooks: this.deps.hooksInstalled(), mod: this.deps.modActive(), port: this.deps.port(),
       version: this.deps.version, hotkey: this.deps.hotkey,
@@ -101,12 +89,12 @@ export class SettingsModel {
   }
 
   stepScale(dir: 1 | -1): SetResult {
-    return this.set('scale', stepScale(this.scale, dir));
+    return this.set('scale', stepScale(this.v.scale, dir));
   }
 
   /** The user dragged the overlay: the preset no longer applies. */
   dragged(pos: Point): void {
-    this.placement = undefined;
+    this.v.placement = undefined;
     this.deps.persist({ position: pos, placement: undefined });
     this.deps.changed();
   }
@@ -118,38 +106,38 @@ export class SettingsModel {
         const lang = parseLanguage(value);
         if (!lang) return 'invalid';
         this.deps.applyLanguage(lang);
-        this.language = lang;
+        this.v.language = lang;
         return { language: lang };
       }
       case 'scale': {
         if (typeof value !== 'number' || !(SCALES as readonly number[]).includes(value)) return 'invalid';
-        this.scale = this.deps.applyScale(value);
-        return { scale: this.scale };
+        this.v.scale = this.deps.applyScale(value);
+        return { scale: this.v.scale };
       }
       case 'opacity': {
         if (typeof value !== 'number' || !Number.isFinite(value)) return 'invalid';
         const o = clampOpacity(value);
         this.deps.applyOpacity(o);
-        this.opacity = o;
+        this.v.opacity = o;
         return { opacity: o };
       }
       case 'placement': {
         const p = parsePlacement(value);
         if (!p) return 'invalid';
         const position = this.deps.applyPlacement(p);
-        this.placement = p;
+        this.v.placement = p;
         return { position, placement: p };
       }
       case 'approvals': {
         if (value !== parseApprovalMode(value)) return 'invalid';
         this.deps.setApprovals(value as ApprovalMode);
-        this.approvals = value as ApprovalMode;
+        this.v.approvals = value as ApprovalMode;
         return { approvals: value };
       }
       case 'awake': {
         if (typeof value !== 'boolean') return 'invalid';
         this.deps.setAwake(value);
-        this.awake = value;
+        this.v.awake = value;
         return { awake: value };
       }
       case 'autostart': {

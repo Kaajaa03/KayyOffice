@@ -14,7 +14,7 @@ interface BenchFigure {
   chip: ReturnType<typeof modelChip>;
 }
 
-interface BenchPlan { figures: BenchFigure[]; more: number }
+export interface BenchPlan { figures: BenchFigure[]; more: number }
 
 export function benchName(type: string): string {
   const name = type.startsWith('kayy-') && type.length > 5 ? type.slice(5) : type;

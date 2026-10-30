@@ -11,7 +11,7 @@ Pixel-Büro für **Claude-Code-Agents** unter Windows. Jeder Agent sitzt in eine
 npm install
 npm start          # baut und startet die App (Tray-Icon unten rechts)
 ```
-Beim ersten Start öffnet sich ein **Willkommensfenster** (Sprache wählbar) mit Status, „Hooks installieren“, einer **Demo** (15 s) und dem Knopf „Einstellungen öffnen“. Das Büro erscheint oben mittig, sobald Agents arbeiten. **Strg+Alt+O** blendet es ein und aus; Doppelklick auf das Tray-Icon öffnet die **Einstellungen**. Voraussetzung: Node.js im PATH (für Hooks). Installer: `npm run dist` erzeugt `release/Kayy Office Setup <Version>.exe` und eine Portable-Version.
+Beim ersten Start öffnen sich die **Einstellungen** mit einer kurzen Einführung (Sprache, „Hooks installieren“, **Demo** 15 s). Das Büro erscheint oben mittig, sobald Agents arbeiten. **Strg+Alt+O** blendet es ein und aus; Doppelklick auf das Tray-Icon öffnet die **Einstellungen**. Voraussetzung: Node.js im PATH (für Hooks). Installer: `npm run dist` erzeugt `release/Kayy Office Setup <Version>.exe` und eine Portable-Version.
 
 ## Zwei Wege, Agents anzuschließen
 | Weg | Was du bekommst |
@@ -77,7 +77,7 @@ Tray-Menü: Anzeigen/Verstecken, **Einstellungen…**, Demo zeigen, Beenden. All
 | **Freigaben** | riskant / alle / nie, mit je einem Satz Erklärung |
 | **Verbindung** | Hooks installiert ✓/✗ mit Installieren/Entfernen (Ergebnis direkt im Fenster), Claude-Mod verbunden (in den letzten 5 Minuten aktiv), Port |
 | **System** | Mit Windows starten (nur installierte Version), Wach bleiben |
-| **Werkzeuge** | Demo, Willkommen/Hilfe, Dev-Log, Wochen-Recap, Rollen-Datei, Diagnose-Log |
+| **Werkzeuge** | Demo, Dev-Log, Wochen-Recap, Rollen-Datei, Diagnose-Log |
 
 Gespeichert in `config.json` (`scale`, `position`/`placement`, `opacity`, `language`, `approvals`, `awake`).
 
@@ -110,7 +110,7 @@ npm run mock -- team # Fake-Events (single | team | permission | error | cleanup
 npm run perf         # Leerlauf-Abnahme (PASS/FAIL); "-- active" für Last
 npm run dist         # Installer + Portable nach release/
 ```
-Debug-Flags: `--demo`, `--demo-count=<n>`, `--screenshot=<png>`, `--hour=<0-23>`, `--no-card`, `--welcome`, `--no-welcome`, `--settings`, `--scale=<0.67|1|1.33|1.67|2>`, `--lang=<de|en>`, `--config-dir=<Ordner>` (eigene Konfiguration für Testläufe). Scale und Sprache per Flag werden nicht gespeichert. Mod-Tests: `claude plugin test mod/kayy-office`. CI: GitHub Actions (`.github/workflows/ci.yml`).
+Debug-Flags: `--demo`, `--demo-count=<n>`, `--screenshot=<png>`, `--hour=<0-23>`, `--no-card`, `--settings`, `--scale=<0.67|1|1.33|1.67|2>`, `--lang=<de|en>`, `--config-dir=<Ordner>` (eigene Konfiguration für Testläufe). Scale und Sprache per Flag werden nicht gespeichert. Mod-Tests: `claude plugin test mod/kayy-office`. CI: GitHub Actions (`.github/workflows/ci.yml`).
 
 ## Roadmap
 Weitere Tools (Codex, Cursor) als Adapter, Tauri-Portierung für noch weniger RAM. Bewusst nicht geplant: Chat-zu-Chat-Nachrichten (Endlos-Ping-Pong-Risiko), Telemetrie, Auto-Update.

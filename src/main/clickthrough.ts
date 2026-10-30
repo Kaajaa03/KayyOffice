@@ -1,4 +1,4 @@
-export interface MouseTarget {
+interface MouseTarget {
   isDestroyed(): boolean;
   setIgnoreMouseEvents(ignore: boolean, options?: { forward: boolean }): void;
 }

@@ -23,14 +23,14 @@ const meter = atom(
 
 const TITLE = 'Kayy Office'
 
-/** Session id and cwd, cached; throws when the session cannot say (then no event is sent). */
+/** Session id and cwd, cached; throws when the session cannot say. */
 async function where($: EngineInterface, office: Office) {
   if (office.sessionId === undefined) office.sessionId = await $.session.id()
   if (office.cwd === undefined) office.cwd = await $.session.cwd()
   return { ts: await $.clock.now(), sessionId: office.sessionId, cwd: office.cwd }
 }
 
-/** Sends one event; any failure on the way is swallowed. */
+/** Sends one event; the overlay is optional, so any failure is swallowed. */
 async function emit(
   $: EngineInterface,
   office: Office,
@@ -42,25 +42,19 @@ async function emit(
     const at = await where($, office)
     const parentId = extra.parentId ?? (agentId !== undefined ? (office.spawned.get(agentId)?.parentId ?? at.sessionId) : undefined)
     sendEvent($, office, makeEvent(at, event, agentId, { ...extra, parentId }))
-  } catch {
-    // the overlay is optional: never let it touch the session
-  }
+  } catch {}
 }
 
+/** Pane state is best effort. */
 async function quietly(work: Promise<unknown>) {
   try {
     await work
-  } catch {
-    // pane state is best effort
-  }
+  } catch {}
 }
 
 const moved = (last: number | undefined, now: number) => last === undefined || Math.abs(now - last) >= 1
 
-/**
- * One usage read: cost, plus context and limit for the overlay only when their rounded percent
- * moved by a point since the last one sent. The pane always gets the latest values.
- */
+/** One usage read: context and limit go to the overlay only when they moved a point; the pane always gets the latest. */
 async function snapshot($: EngineInterface, office: Office) {
   const u = await readUsage($)
   await quietly(update($, meter, () => ({ context: u.context?.percent ?? null, limit: u.limit ?? null })))
@@ -76,7 +70,7 @@ async function snapshot($: EngineInterface, office: Office) {
   return { out, cost: u.cost }
 }
 
-/** The bench: offered user/plugin agent types, sorted, with the router's model where the rules know it. */
+/** Offered user/plugin agent types, sorted, with the router's model where known. */
 async function emitRoster($: EngineInterface, office: Office) {
   const rules = (await loadRules($, office)) ?? DEFAULT_RULES
   const roster = [...office.roster].sort().slice(0, 12).map(type => {
@@ -144,6 +138,32 @@ async function warnRouterOnce($: EngineInterface) {
   await $.store.set('routerHintShown', true)
 }
 
+/**
+ * TodoWrite progress to send for this call: a changed one, `null` to clear a bar sent before
+ * (a real list with nothing to show), else undefined. Records what it returns.
+ */
+function nextProgress(office: Office, row: string, e: { tool: string }, failed: boolean) {
+  if (e.tool !== 'TodoWrite' || failed) return undefined
+  const todo = todoProgress(e)
+  let progress: Progress | null | undefined
+  if (todo !== undefined) {
+    if (!sameProgress(office.progress.get(row), todo)) progress = todo
+  } else if (hasTodoList(e) && office.progress.has(row)) {
+    progress = null
+  }
+  if (progress === null) office.progress.delete(row)
+  else if (progress !== undefined) office.progress.set(row, progress)
+  return progress
+}
+
+/** A session's caches; a /clear goes on under a new session id. */
+function forgetSession(office: Office) {
+  office.sessionId = undefined
+  office.spawned.clear()
+  office.progress.clear()
+  office.sentMeter = {}
+}
+
 export const register: Register = on => {
   const office = newOffice()
 
@@ -151,10 +171,8 @@ export const register: Register = on => {
     await $.command.register({ name: 'router', description: 'Model routing for subagents: /router [status|on|off]' })
     await $.command.register({ name: 'office', description: 'Kayy Office: Pane öffnen/schließen, Status, Autopilot, Orchestrator', argumentHint: '[status | autopilot on|off|status | orchestrator on|off|status]' })
     const started = await next(e)
-    office.sessionId = undefined
+    forgetSession(office)
     office.cwd = e.cwd
-    office.spawned.clear()
-    office.progress.clear()
     try {
       office.mainModel = await $.session.model()
     } catch {
@@ -162,7 +180,6 @@ export const register: Register = on => {
     }
     await quietly(update($, agents, () => [{ id: MAIN, type: 'main', status: 'idle', ...(office.mainModel ? { model: office.mainModel } : {}) }]))
     await quietly(update($, pending, () => []))
-    office.sentMeter = {}
     const { out, cost: spent } = await snapshot($, office)
     if (spent !== undefined) await quietly(update($, cost, () => spent))
     await emit($, office, 'SessionStart', undefined, { model: office.mainModel, ...out })
@@ -191,7 +208,7 @@ export const register: Register = on => {
     const file = fileOf(e)
     await emit($, office, 'PreToolUse', e.agentId, { tool: e.tool, file, model: modelOf(office, e.agentId) })
     await quietly(setAgent($, row, { status: 'running', tool: e.tool, file }))
-    // A question or a plan for the person: the office shows that a decision is wanted (never answers it).
+    // The office shows that a decision is wanted; it never answers it.
     const question = decisionOf(e.tool, e)
     if (question !== undefined) {
       await emit($, office, 'Notification', e.agentId, { tool: e.tool, message: `Entscheidung: ${question}`, model: modelOf(office, e.agentId) })
@@ -199,28 +216,15 @@ export const register: Register = on => {
     }
     const ran = await next(e).finally(() => (question !== undefined ? quietly(setDecision($, null)) : undefined))
     const message = errorOf(e.tool, ran)
-    // TodoWrite: tasks done of all, sent only when it differs from this agent's last one.
-    // A real list with nothing to show (empty, no valid items, over 99) clears a bar sent before: one null.
-    let progress: Progress | null | undefined
-    if (e.tool === 'TodoWrite' && message === undefined) {
-      const todo = todoProgress(e)
-      if (todo !== undefined) {
-        if (!sameProgress(office.progress.get(row), todo)) progress = todo
-      } else if (hasTodoList(e) && office.progress.has(row)) {
-        progress = null
-      }
-    }
-    if (progress === null) office.progress.delete(row)
-    else if (progress !== undefined) office.progress.set(row, progress)
+    const progress = nextProgress(office, row, e, message !== undefined)
     await emit($, office, 'PostToolUse', e.agentId, { tool: e.tool, file, message, progress, model: modelOf(office, e.agentId) })
     await quietly(setAgent($, row, { status: 'running', tool: undefined, file: undefined, ...(progress !== undefined ? { progress: progress ?? undefined } : {}) }))
     return ran
   }).catch(($, e, next) => next(e))
 
-  // Approver: only a real call's core `ask` meant for a person is ever put to the overlay.
   on('tool.check', async ($, e, next) => {
     const core = await next(e)
-    // Autopilot first: routine in the project needs no card at all. Never touches a core allow/deny.
+    // Autopilot first (never touches a core allow/deny): routine in the project needs no card.
     const auto = await autopilotCheck(autopilotIoFor($, office), e as CheckEvent, core).catch(() => undefined)
     if (auto !== undefined) return auto
     if (!shouldForward(e as CheckEvent, core)) return core
@@ -257,7 +261,6 @@ export const register: Register = on => {
   on('turn.complete', async ($, e, next) => {
     await quietly(showStatus($))
     if (e.agentId !== undefined) {
-      // A subagent's run ends in its own turn.complete carrying its agentId.
       const known = office.spawned.get(e.agentId)
       const failed = e.reason === 'error'
       await emit($, office, 'SubagentStop', e.agentId, {
@@ -279,16 +282,11 @@ export const register: Register = on => {
   on('session.end', async ($, e, next) => {
     office.sessionId = e.sessionId
     await emit($, office, 'SessionEnd', undefined)
-    // A /clear goes on under a new session id: forget the old one.
-    office.sessionId = undefined
-    office.spawned.clear()
-    office.progress.clear()
-    office.sentMeter = {}
+    forgetSession(office)
     await quietly(update($, pending, () => []))
     return next(e)
   }).catch(($, e, next) => next(e))
 
-  // Bench for waiting subagents: records user/plugin agent types as they are offered; never changes the offer.
   on('agent.offer', async ($, e, next) => {
     const offered = await next(e)
     if (offered.isOffered !== false && e.source !== 'built-in' && e.agent.length > 0 && !office.roster.has(e.agent) && office.roster.size < 50) {
@@ -298,7 +296,6 @@ export const register: Register = on => {
     return offered
   }).catch(($, e, next) => next(e))
 
-  // Orchestration policy: one short section at the end of the system prompt, while on.
   on('prompt.compose', async ($, e, next) => {
     const composed = await next(e)
     if (office.isOrchestrator === undefined) await quietly(loadSwitches($, office))

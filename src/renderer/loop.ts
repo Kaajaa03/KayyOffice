@@ -1,3 +1,4 @@
+// Animation mode (fast/slow/none) and the frame-rate gate of the render loop.
 import { COFFEE_MS, WALK_MS, isWalking } from './walk';
 import type { Agent } from '../shared/types';
 

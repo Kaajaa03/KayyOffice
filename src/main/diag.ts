@@ -14,6 +14,13 @@ export function initDiag(dir: string): void {
 
 export const appLogPath = (): string | null => logPath;
 
+/** Non-fatal by design: a stray error in a tray app is logged, it must not kill the overlay. */
+export function guardProcess(): void {
+  for (const kind of ['uncaughtException', 'unhandledRejection']) {
+    process.on(kind, (e) => { console.error(kind, e); appLog('error', kind, e); });
+  }
+}
+
 /** One flat, bounded line. Long hex runs (tokens, nonces, proofs) never reach the file. */
 const clean = (v: string) => v.replace(/\s+/g, ' ').replace(/[0-9a-f]{32,}/gi, '[redacted]').slice(0, MAX_FIELD);
 

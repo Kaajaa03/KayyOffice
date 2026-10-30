@@ -9,8 +9,6 @@ const counts = atom({ plugin: 'kayy-office', key: 'counts' } as const, { haiku: 
 const isOff = atom({ plugin: 'kayy-office', key: 'isOff' } as const, false)
 const cost = atom({ plugin: 'kayy-office', key: 'cost' } as const, null as number | null)
 
-// Ported from kayy-router unchanged in behaviour: rules.json, defaults, verb heuristic, status line.
-
 export type Usage = { cost?: number; context?: ContextInfo; limit?: LimitInfo }
 
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
@@ -39,12 +37,8 @@ export async function readUsage($: EngineInterface): Promise<Usage> {
   }
 }
 
-export async function usd($: EngineInterface): Promise<number | undefined> {
-  return (await readUsage($)).cost
-}
-
 export async function summary($: EngineInterface) {
-  const spent = await usd($)
+  const spent = (await readUsage($)).cost
   if (spent !== undefined) await update($, cost, () => spent)
   return statusText(await read($, counts), spent, !(await read($, isOff)))
 }

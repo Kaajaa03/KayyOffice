@@ -1,6 +1,6 @@
 import type { AppState } from '../shared/types';
 
-export interface Blocker {
+interface Blocker {
   start(type: 'prevent-app-suspension' | 'prevent-display-sleep'): number;
   stop(id: number): void;
 }

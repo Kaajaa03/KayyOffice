@@ -1,7 +1,8 @@
+// Pure scene logic: stable desk slots per agent, seating in the room, and the office counters.
 import { projectOf } from '../shared/project';
 import type { Agent } from '../shared/types';
-
 import { roomLayout } from './room';
+import type { Room, Seat } from './room';
 
 /** Seat index; the room geometry (room.ts) maps it to a position. */
 interface Desk {
@@ -48,7 +49,7 @@ export class DeskLayout {
   }
 }
 
-interface OfficeStats { total: number; working: number; waiting: number; costUsd: number | null }
+export interface OfficeStats { total: number; working: number; waiting: number; costUsd: number | null }
 
 /** Footer numbers; cost sums top-level sessions only (subagent cost is part of its session). */
 export function officeStats(agents: Agent[]): OfficeStats {
@@ -59,6 +60,22 @@ export function officeStats(agents: Agent[]): OfficeStats {
     if (!a.parentId && a.costUsd !== undefined) { cost += a.costUsd; hasCost = true; }
   }
   return { total: agents.length, working, waiting, costUsd: hasCost ? +cost.toFixed(4) : null };
+}
+
+/** Puts each desk's agent on its seat; desks beyond the room count as overflow. Labels = project names per cluster. */
+export function seatAgents(desks: Desk[], agents: Record<string, Agent>, room: Room): { seated: Array<{ a: Agent; s: Seat }>; labels: string[]; overflow: number } {
+  const seated: Array<{ a: Agent; s: Seat }> = [];
+  const projects: string[][] = room.clusters.map(() => []);
+  let overflow = 0;
+  for (const d of [...desks].sort((x, y) => x.slot - y.slot)) {
+    const s = room.seats[d.slot];
+    const a = agents[d.agentId];
+    if (!s) { overflow++; continue; }
+    seated.push({ a, s });
+    const name = projectOf(a);
+    if (!projects[s.cluster].includes(name)) projects[s.cluster].push(name);
+  }
+  return { seated, labels: projects.map((p) => p.join(' · ')), overflow };
 }
 
 /** Desk rows of the room needed for these desks. */

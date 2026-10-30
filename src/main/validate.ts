@@ -3,7 +3,7 @@ import type { AgentEvent, ContextUsage, EventName, Progress, RosterEntry, UsageL
 
 export const MAX_BODY_BYTES = 65536;
 
-const str = (v: unknown, max: number): string | undefined =>
+export const str = (v: unknown, max: number): string | undefined =>
   typeof v === 'string' ? v.slice(0, max) : undefined;
 
 const MAX_TASKS = 99;

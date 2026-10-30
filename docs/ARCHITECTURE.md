@@ -16,7 +16,9 @@ Freigaben:  Hook/Mod ──POST /permission (blockierend)──► PermissionQue
 | Zustand | `src/main/state.ts` | reiner Reducer `reduce(state, event)`, `tick`, `nextDueMs`, `pruneStale` |
 | Quellen-Vorrang | `src/main/source.ts` | Mod vor Hook je Session |
 | Freigaben | `control.ts`, `approvals.ts`, `src/shared/risk.ts` | Warteschlange (20 s), Modus, Blast-Radius-Heuristik |
-| Overlay | `window.ts`, `clickthrough.ts` | transparentes, klickdurchlässiges Fenster, Reset bei Hide/Reload/Crash; Tray nur Anzeigen/Einstellungen/Demo/Beenden |
+| Start | `main.ts`, `flags.ts` | kurzer Kompositionspunkt; alle Kommandozeilen-Flags typisiert an einer Stelle |
+| Verdrahtung | `office.ts`, `ingest.ts`, `ipc.ts`, `actions.ts`, `tray.ts`, `tooltip.ts`, `devtools.ts` | `office`: Zustand, Demo, Publish-Drossel, Housekeeping; `ingest`: Server → Zustand; `ipc`: alle Fenster-Nachrichten mit Absender-Prüfung; `actions`: Hooks installieren, Hinweis, Werkzeuge; `tray`: Anzeigen/Einstellungen/Demo/Beenden; `devtools`: Perf-Messung und Screenshot |
+| Overlay | `window.ts`, `clickthrough.ts` | transparentes, klickdurchlässiges Fenster, Reset bei Hide/Reload/Crash |
 | Renderer | `src/renderer/*` | Raum einmal in Offscreen-Cache, nur Figuren/Bildschirme animiert, `animationMode` bestimmt 60/10 fps oder Stillstand |
 | Log | `log.ts`, `diag.ts` | JSONL pro Tag (ohne Texte), Dev-Log, `app.log` mit Rotation |
 | Konfiguration | `config.ts`, `roles.ts`, `fsutil.ts` | atomare Writes, Rollen-Regeln (`roles.json` wird per `fs.watch` neu geladen, kein Timer) |

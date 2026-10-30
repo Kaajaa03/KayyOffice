@@ -4,7 +4,7 @@ import { clampToWorkAreas } from './position';
 import type { Rect, Size } from './position';
 
 export const SCALES = [0.67, 1, 1.33, 1.67, 2] as const;
-export const DEFAULT_SCALE = 1;
+const DEFAULT_SCALE = 1;
 const SNAP = 0.01;
 
 /** The allowed step a stored/received value stands for (tiny float noise is snapped); invalid => 1. */

@@ -1,9 +1,7 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, watch, writeFileSync } from 'node:fs';
+import { basename, dirname } from 'node:path';
 import { appLog } from './diag';
-import { projectOf } from '../shared/project';
 import type { Agent, AppState } from '../shared/types';
-
-export { projectOf };
 
 export interface RoleDef {
   match: { cwdContains?: string; namePattern?: string };
@@ -12,7 +10,7 @@ export interface RoleDef {
   sprite?: string;
 }
 
-export const DEFAULT_ROLES: RoleDef[] = [
+const DEFAULT_ROLES: RoleDef[] = [
   { match: { namePattern: 'plan' }, role: 'Planner', color: '#9775fa' },
   { match: { namePattern: 'review' }, role: 'Reviewer', color: '#ffa94d' },
   { match: { namePattern: 'test|qa' }, role: 'Tester', color: '#69db7c' },
@@ -61,9 +59,20 @@ export function loadRoles(path: string): RoleDef[] {
   }
 }
 
-/** Writes the sample roles.json on first run (never overwrites). */
-export function ensureDefaultRoles(path: string): void {
+/** roles.json: the sample is written on first run (never overwritten); edits apply right after saving
+ *  (event-driven fs.watch: no timer, no polling). `onChange` fires after each reload. */
+export function openRoles(path: string, onChange: () => void): { current(): RoleDef[] } {
   if (!existsSync(path)) writeFileSync(path, JSON.stringify(DEFAULT_ROLES, null, 2));
+  let roles = loadRoles(path);
+  let debounce: NodeJS.Timeout | null = null;
+  try {
+    watch(dirname(path), (_event, name) => {
+      if (name !== basename(path)) return;
+      if (debounce) clearTimeout(debounce);
+      debounce = setTimeout(() => { debounce = null; roles = loadRoles(path); onChange(); }, 300);
+    }).on('error', (e) => appLog('warn', 'roles: watcher stopped', e));
+  } catch (e) { appLog('warn', 'roles: cannot watch roles.json', e); }
+  return { current: () => roles };
 }
 
 export function assignRole(agent: Agent, roles: RoleDef[]): { role?: string; color?: string; sprite?: string } {
@@ -81,8 +90,3 @@ export function applyRoles(state: AppState, roles: RoleDef[]): AppState {
   return { ...state, agents: Object.fromEntries(Object.entries(state.agents).map(([id, a]) => [id, { ...a, ...assignRole(a, roles) }])) };
 }
 
-export function groupByProject(agents: Agent[]): Record<string, Agent[]> {
-  const out: Record<string, Agent[]> = {};
-  for (const a of agents) (out[projectOf(a)] ??= []).push(a);
-  return out;
-}

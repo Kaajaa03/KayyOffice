@@ -1,7 +1,7 @@
 import http from 'node:http';
 import { NonceCache, responseProof, verifyAuth } from './auth';
 import type { AddressInfo } from 'node:net';
-import { MAX_BODY_BYTES, parseEvent } from './validate';
+import { MAX_BODY_BYTES, parseEvent, str } from './validate';
 import type { AgentEvent, PermissionDecision, PermissionPayload } from '../shared/types';
 
 export interface ServerOptions {
@@ -12,7 +12,7 @@ export interface ServerOptions {
   onPermission?: (p: PermissionPayload, signal: AbortSignal) => Promise<PermissionDecision>;
 }
 
-export interface RunningServer {
+interface RunningServer {
   port: number;
   address: string;
   close(): Promise<void>;
@@ -40,17 +40,15 @@ function readBody(req: http.IncomingMessage, res: http.ServerResponse, done: (bo
   req.on('end', () => { if (!rejected) done(Buffer.concat(chunks)); });
 }
 
-const s = (v: unknown, max: number): string | null => (typeof v === 'string' && v ? v.slice(0, max) : null);
-
 function parsePermission(raw: unknown): PermissionPayload | null {
   if (typeof raw !== 'object' || raw === null) return null;
   const r = raw as Record<string, unknown>;
-  const sessionId = s(r.sessionId, 200);
-  const agentId = s(r.agentId, 200);
-  const tool = s(r.tool, 100);
+  const sessionId = str(r.sessionId, 200);
+  const agentId = str(r.agentId, 200);
+  const tool = str(r.tool, 100);
   if (!sessionId || !agentId || !tool) return null;
   const source = r.source === 'mod' || r.source === 'hook' ? r.source : undefined;
-  return { sessionId, agentId, tool, summary: typeof r.summary === 'string' ? r.summary.slice(0, 300) : '', source };
+  return { sessionId, agentId, tool, summary: str(r.summary, 300) ?? '', source };
 }
 
 export function startServer(opts: ServerOptions): Promise<RunningServer> {

@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { startServer } from '../src/main/server';
 import type { ServerOptions } from '../src/main/server';
-import { loadConfig, saveConfigPort } from '../src/main/config';
+import { loadConfig, updateConfig } from '../src/main/config';
 import type { AgentEvent } from '../src/shared/types';
 
 const HOOK = resolve(__dirname, '../hook/hook.js');
@@ -30,7 +30,7 @@ async function setup(port: number, onPermission?: ServerOptions['onPermission'])
   const got: AgentEvent[] = [];
   const s = await startServer({ token: cfg.token, port, onEvent: (e) => got.push(e), onPermission });
   closers.push(s.close);
-  saveConfigPort(dir, s.port);
+  updateConfig(dir, { port: s.port });
   return { dir, got };
 }
 
@@ -96,7 +96,7 @@ describe('hook.js', () => {
   it('--permission prints nothing and exits 0 when the app is not running', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'kayy-hook-'));
     loadConfig(dir);
-    saveConfigPort(dir, 48198);
+    updateConfig(dir, { port: 48198 });
     const r = await runHook(dir, permInput, ['--permission']);
     expect(r.code).toBe(0);
     expect(r.out).toBe('');
@@ -108,7 +108,7 @@ describe('hook.js', () => {
     const fake = http.createServer((_req, res) => res.writeHead(200, { 'content-type': 'application/json' }).end('{"decision":"allow"}'));
     await new Promise<void>((r) => fake.listen(48180, '127.0.0.1', r));
     closers.push(() => new Promise<void>((r) => { fake.close(() => r()); fake.closeAllConnections(); }));
-    saveConfigPort(dir, 48180);
+    updateConfig(dir, { port: 48180 });
     const r = await runHook(dir, permInput, ['--permission']);
     expect(r.code).toBe(0);
     expect(r.out).toBe('');
@@ -124,7 +124,7 @@ describe('hook.js', () => {
   it('exits 0 quickly when the app is not running', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'kayy-hook-'));
     const cfg = loadConfig(dir);
-    saveConfigPort(dir, 48199);
+    updateConfig(dir, { port: 48199 });
     void cfg;
     const r = await runHook(dir, JSON.stringify({ hook_event_name: 'Stop', session_id: 's', cwd: 'C:\\p' }));
     expect(r.code).toBe(0);

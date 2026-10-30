@@ -5,11 +5,11 @@ import { formatCost } from '../shared/model';
 import type { Agent } from '../shared/types';
 import { officeStats } from './scene';
 
-export type MeterLevel = 'ok' | 'warn' | 'high';
+type MeterLevel = 'ok' | 'warn' | 'high';
 
 export const meterLevel = (percent: number): MeterLevel => (percent >= 85 ? 'high' : percent >= 70 ? 'warn' : 'ok');
 
-export interface FooterPart { text: string; level?: MeterLevel }
+interface FooterPart { text: string; level?: MeterLevel }
 
 const KIND_LABEL: Record<string, string> = { five_hour: '5h', seven_day: '7d' };
 

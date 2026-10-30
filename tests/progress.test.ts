@@ -7,7 +7,7 @@ import { parseEvent } from '../src/main/validate';
 import { initialState, reduce } from '../src/main/state';
 import { EventLog, renderDevLog, localDate } from '../src/main/log';
 import { startServer } from '../src/main/server';
-import { loadConfig, saveConfigPort } from '../src/main/config';
+import { loadConfig, updateConfig } from '../src/main/config';
 import { pillLines } from '../src/renderer/pill';
 import type { Agent, AgentEvent } from '../src/shared/types';
 
@@ -131,7 +131,7 @@ describe('hook.js maps TodoWrite to progress', () => {
     const got: AgentEvent[] = [];
     const s = await startServer({ token: cfg.token, port: 48210, onEvent: (e) => got.push(e) });
     closers.push(s.close);
-    saveConfigPort(dir, s.port);
+    updateConfig(dir, { port: s.port });
     const todos = [
       { content: 'Plan', status: 'completed', activeForm: 'Planning' },
       { content: 'Build', status: 'in_progress', activeForm: 'Building it' },
