@@ -1,7 +1,7 @@
 // Pure sun position: sunrise/sunset from day of year (default location: central Germany).
 
 export type DayPhase = 'night' | 'dawn' | 'day' | 'dusk';
-export interface SunTimes { sunrise: number; sunset: number }
+interface SunTimes { sunrise: number; sunset: number }
 
 const RAD = Math.PI / 180;
 

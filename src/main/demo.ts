@@ -21,3 +21,30 @@ export function demoState(now = Date.now()): AppState {
   ];
   return { agents: Object.fromEntries(list.map((a) => [a.id, a])) };
 }
+
+const DEMO_PROJECTS = ['C:\\dev\\KayyOffice', 'C:\\dev\\site', 'C:\\dev\\infra', 'C:\\ai\\Claude'];
+const DEMO_STATUS: Agent['status'][] = ['working', 'working', 'waiting', 'done', 'working', 'error', 'idle', 'done', 'working', 'working'];
+const DEMO_CATEGORY: Array<Agent['category']> = ['code', 'terminal', 'browser', 'other'];
+const DEMO_MODEL = ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5'];
+const DEMO_MAX = 60;
+
+/** `--demo-count=<n>`: n agents over 1-4 projects with mixed statuses, for layout checks. */
+export function demoCountState(count: number, now = Date.now()): AppState {
+  const n = Math.min(DEMO_MAX, Math.max(1, Math.floor(count) || 1));
+  const projects = Math.min(DEMO_PROJECTS.length, Math.ceil(n / 6));
+  const agents: Record<string, Agent> = {};
+  for (let i = 0; i < n; i++) {
+    const id = `agent${i + 1}`;
+    const parent = i % 5 === 4 ? `agent${i}` : undefined; // every 5th agent is a sub-agent of the one before
+    const status = DEMO_STATUS[i % DEMO_STATUS.length];
+    const cwd = parent ? agents[parent].cwd : DEMO_PROJECTS[Math.floor((i * projects) / n)];
+    const lastEventTs = status === 'done' ? now - [3000, 30_000, 120_000][i % 3] : now;
+    agents[id] = {
+      id, sessionId: parent ?? id, parentId: parent, cwd, status, lastEventTs,
+      category: status === 'working' ? DEMO_CATEGORY[i % DEMO_CATEGORY.length] : undefined,
+      model: DEMO_MODEL[i % DEMO_MODEL.length],
+      costUsd: parent ? undefined : +(0.05 + (i % 7) * 0.31).toFixed(2),
+    };
+  }
+  return { agents };
+}

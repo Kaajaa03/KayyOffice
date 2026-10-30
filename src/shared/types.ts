@@ -40,7 +40,7 @@ export interface AgentEvent {
 }
 
 export type AgentStatus = 'idle' | 'working' | 'waiting' | 'done' | 'error';
-export type ToolCategory = 'code' | 'terminal' | 'browser' | 'other';
+type ToolCategory = 'code' | 'terminal' | 'browser' | 'other';
 
 export interface Agent {
   id: string;

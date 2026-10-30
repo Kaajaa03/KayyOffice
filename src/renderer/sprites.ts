@@ -6,9 +6,8 @@ import type { Agent } from '../shared/types';
 import { P, WALL_H, CLUSTER_W, PAD, KITCHEN_W } from './room';
 import type { Room, Seat } from './room';
 import type { DayPhase } from './sun';
-import { labelFor, pillLines } from './pill';
-
-export { labelFor };
+import { pillLines } from './pill';
+import type { Lang } from '../shared/i18n';
 
 export const HEADER_H = 18;
 export const FOOTER_H = 20;
@@ -22,7 +21,7 @@ const hash = (s: string): number => {
   return h;
 };
 
-export function agentColor(id: string, override?: string): string {
+function agentColor(id: string, override?: string): string {
   return override || PALETTE[hash(id) % PALETTE.length];
 }
 
@@ -144,7 +143,7 @@ function legs(c: Ctx, frame: -1 | 0 | 1, y = 12): void {
 }
 
 /** 8 x 16 logical px, origin = top-left of the hair. */
-export function paintPerson(c: Ctx, l: Look, pose: Pose): void {
+function paintPerson(c: Ctx, l: Look, pose: Pose): void {
   switch (pose) {
     case 'stand': case 'walk0': case 'walk1': case 'cup':
       headFront(c, l);
@@ -214,7 +213,7 @@ function chairFront(c: Ctx, x: number, y: number): void {
 }
 
 export const bottomChairY = (s: Seat): number => s.y + 8;
-export const topChairY = (s: Seat): number => s.y + 2;
+const topChairY = (s: Seat): number => s.y + 2;
 
 /** Monitor whose screen faces the viewer: bezel 14 x 9 at (x-7, y). Screen inner = (x-6, y+1, 12, 7). */
 function monitorFront(c: Ctx, x: number, y: number): void {
@@ -225,7 +224,7 @@ function monitorFront(c: Ctx, x: number, y: number): void {
 }
 
 /** Monitor seen from behind (top row). */
-export function monitorBack(c: Ctx, x: number, y: number): void {
+function monitorBack(c: Ctx, x: number, y: number): void {
   r(c, x - 7, y, 14, 9, '#c9ccd3');
   r(c, x - 7, y + 8, 14, 1, '#a7abb5');
   r(c, x - 1, y + 3, 2, 2, '#e9ebef');
@@ -435,7 +434,7 @@ function deskCluster(c: Ctx, x0: number, y0: number, label: string): void {
     c.textAlign = 'center';
     c.textBaseline = 'middle';
     let t = label;
-    while (t.length > 3 && c.measureText(t).width > 24 * P) t = t.replace(/…$/, '').slice(0, -1) + '…';
+    while (t.length > 3 && c.measureText(t).width > 60 * P) t = t.replace(/…$/, '').slice(0, -1) + '…';
     const tw = c.measureText(t).width + 8;
     const cx = (x0 + 46) * P;
     c.fillStyle = '#e9dcc4';
@@ -654,15 +653,23 @@ const PILL_SUB = `600 8px ${FONT}`;
 export const PILL_H = 21;
 const PILL_MAX = 72;
 
-/** Lumio-style name pill centred at css (cx, top). */
-export function drawPill(c: Ctx, agent: Agent, cx: number, top: number, dpr: number): void {
-  const p = pillLines(agent);
+function pillParts(agent: Agent, lang: Lang) {
+  const p = pillLines(agent, lang);
   const chip = modelChip(agent.model);
   const extra = 12 + (chip ? 12 : 0);
   const title = fit(p.title, PILL_TITLE, PILL_MAX - extra);
   const sub = fit(p.sub, PILL_SUB, PILL_MAX - 10);
   const subColor = agent.status === 'waiting' ? '#ffc078' : agent.status === 'error' ? '#ffa8a8' : '#b8c1d1';
   const w = Math.ceil(Math.max(measure(title, PILL_TITLE) + extra, measure(sub, PILL_SUB) + 10) + 4);
+  return { p, chip, title, sub, subColor, w };
+}
+
+/** Width in css px of the name pill (needed for collision placement before drawing). */
+export const pillWidth = (agent: Agent, lang: Lang): number => pillParts(agent, lang).w;
+
+/** Lumio-style name pill centred at css (cx, top). */
+export function drawPill(c: Ctx, agent: Agent, cx: number, top: number, dpr: number, lang: Lang): void {
+  const { p, chip, title, sub, subColor, w } = pillParts(agent, lang);
   const cv = textCanvas(`pill|${title}|${sub}|${p.dot}|${chip?.letter}|${subColor}`, dpr, w, PILL_H, (q) => {
     q.fillStyle = 'rgba(22,26,36,0.90)';
     q.beginPath();

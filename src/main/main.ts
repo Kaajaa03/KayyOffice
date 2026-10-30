@@ -1,7 +1,7 @@
 import { app, BrowserWindow, dialog, globalShortcut, ipcMain, Menu, nativeImage, powerSaveBlocker, shell, Tray } from 'electron';
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { existsSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { loadConfig, saveConfigPort, updateConfig } from './config';
@@ -9,9 +9,10 @@ import { DEFAULT_APPROVAL_MODE, parseApprovalMode, shouldShowCard } from './appr
 import type { ApprovalMode } from './approvals';
 import { resetClickThrough, resetClickThroughWhenIdle } from './clickthrough';
 import { PermissionQueue } from './control';
-import { demoState } from './demo';
+import { demoCountState, demoState } from './demo';
 import { appLog, appLogPath, initDiag } from './diag';
 import { EventLog, localDate, pruneLogs, writeDevLog, writeWeekLog } from './log';
+import { iconPath } from './icon';
 import { installHooks, stageHook, uninstallHooks } from './installer';
 import { runPerf } from './perf';
 import { AwakeManager } from './power';
@@ -19,8 +20,13 @@ import { applyRoles, ensureDefaultRoles, loadRoles } from './roles';
 import type { RoleDef } from './roles';
 import { startServer } from './server';
 import { SourceGate } from './source';
+import { hooksInstalled, tooltipText } from './status';
+import type { WelcomeStatus } from './status';
 import { initialState, nextDueMs, pruneStale, reduce, STALE_MS, tick } from './state';
 import { createOverlay, createWelcome, toggleOverlay } from './window';
+import { defaultLanguage, parseLanguage, t } from '../shared/i18n';
+import type { Lang } from '../shared/i18n';
+import { officeStats } from '../renderer/scene';
 import type { AppState } from '../shared/types';
 
 const PUBLISH_MIN_MS = 50;
@@ -32,6 +38,8 @@ const HOTKEY = 'Control+Alt+O';
 const args = process.argv.filter((a) => a.startsWith('--'));
 const flag = (name: string) => args.find((a) => a === `--${name}` || a.startsWith(`--${name}=`));
 const flagValue = (name: string) => flag(name)?.split('=')[1];
+// --demo-count=<n>: n sample agents (layout checks); implies --demo
+const demoCount = Number(flagValue('demo-count')) || 0;
 
 let state: AppState = initialState();
 let demo: AppState | null = null; // temporary sample office (tray / welcome / --demo)
@@ -68,6 +76,10 @@ let eventLog = new EventLog(null);
 let devLogDir = '';
 let configDirPath = '';
 let approvalMode: ApprovalMode = DEFAULT_APPROVAL_MODE;
+let lang: Lang = 'en';
+let livePort = 0;
+let awakeEnabled = true;
+let tooltip = '';
 
 function setApprovalMode(mode: ApprovalMode): void {
   approvalMode = mode;
@@ -82,8 +94,18 @@ async function openRecap(week: boolean): Promise<void> {
 
 const view = (): AppState => demo ?? state;
 
+function updateTooltip(): void {
+  if (!tray) return;
+  const s = officeStats(Object.values(state.agents));
+  const text = tooltipText(s, lang);
+  if (text === tooltip) return;
+  tooltip = text;
+  tray.setToolTip(text);
+}
+
 function publish(): void {
   awake.update(state);
+  updateTooltip();
   if (publishTimer) { publishDirty = true; return; }
   if (!win.isDestroyed()) win.webContents.send('state', applyRoles(view(), roles));
   publishTimer = setTimeout(() => {
@@ -93,7 +115,7 @@ function publish(): void {
 }
 
 function startDemo(ms: number | null): void {
-  demo = demoState();
+  demo = demoCount ? demoCountState(demoCount) : demoState();
   if (demoTimer) clearTimeout(demoTimer);
   demoTimer = null;
   showOverlay();
@@ -116,18 +138,6 @@ function syncHousekeeping(): void {
   }, delay);
 }
 
-function trayIcon() {
-  const size = 16;
-  const buf = Buffer.alloc(size * size * 4);
-  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
-    const i = (y * size + x) * 4;
-    const border = x < 2 || y < 2 || x >= size - 2 || y >= size - 2;
-    const [b, g, r] = border ? [0xfa, 0x97, 0x77] : y < 8 ? [0x5c, 0x3d, 0x2c] : [0xff, 0xd4, 0x3b];
-    buf[i] = b; buf[i + 1] = g; buf[i + 2] = r; buf[i + 3] = 255;
-  }
-  return nativeImage.createFromBitmap(buf, { width: size, height: size });
-}
-
 const settingsPath = () => join(homedir(), '.claude', 'settings.json');
 const hookPath = () => (app.isPackaged ? join(process.resourcesPath, 'hook', 'hook.js') : join(app.getAppPath(), 'hook', 'hook.js'));
 
@@ -143,9 +153,11 @@ function installHooksAction(): { ok: boolean; text: string } {
     const noNode = spawnSync('where', ['node'], { windowsHide: true }).status !== 0;
     return {
       ok: true,
-      text:
-        `Hooks installiert.${backupPath ? `\nBackup: ${backupPath}` : ''}\nNeue Claude-Code-Sessions nutzen sie automatisch.` +
-        (noNode ? '\n\nACHTUNG: "node" wurde nicht im PATH gefunden. Die Hooks brauchen Node.js, sonst melden sie Fehler.' : ''),
+      text: [
+        t(lang, 'dialog.hooksInstalled'),
+        backupPath ? t(lang, 'dialog.backup', { path: backupPath }) : '',
+        t(lang, 'dialog.newSessions'),
+      ].filter(Boolean).join('\n') + (noNode ? `\n\n${t(lang, 'dialog.noNode')}` : ''),
     };
   } catch (e) {
     appLog('error', 'installer: install failed', e);
@@ -155,62 +167,82 @@ function installHooksAction(): { ok: boolean; text: string } {
 
 function openWelcome(): void {
   if (welcomeWin && !welcomeWin.isDestroyed()) { welcomeWin.focus(); return; }
-  welcomeWin = createWelcome();
+  welcomeWin = createWelcome(lang);
   welcomeWin.on('closed', () => { welcomeWin = null; });
 }
 
+function setLanguage(next: Lang): void {
+  if (next === lang) return;
+  lang = next;
+  updateConfig(configDirPath, { language: next });
+  for (const w of [win, welcomeWin]) if (w && !w.isDestroyed()) w.webContents.send('language', next);
+  refreshTray();
+}
+
 function buildTray(): void {
-  tray = new Tray(trayIcon());
-  tray.setToolTip('Kayy Office – Klick: ein/aus');
+  tray = new Tray(nativeImage.createFromPath(iconPath()));
   tray.on('click', () => toggleOverlay(win));
+  refreshTray();
+}
+
+/** (Re)builds menu and tooltip; the menu is rebuilt when the language changes. */
+function refreshTray(): void {
+  tooltip = '';
+  updateTooltip();
   tray.setContextMenu(Menu.buildFromTemplate([
-    { label: `Anzeigen / Verstecken (${HOTKEY.replace('Control', 'Ctrl')})`, click: () => toggleOverlay(win) },
-    { label: 'Demo zeigen (15 s)', click: () => startDemo(DEMO_MS) },
-    { label: 'Willkommen / Hilfe', click: () => openWelcome() },
+    { label: t(lang, 'tray.toggle', { hotkey: HOTKEY.replace('Control', 'Ctrl') }), click: () => toggleOverlay(win) },
+    { label: t(lang, 'tray.demo'), click: () => startDemo(DEMO_MS) },
+    { label: t(lang, 'tray.welcome'), click: () => openWelcome() },
     {
-      label: 'Freigabe-Karten im Overlay',
+      label: t(lang, 'tray.approvals'),
       submenu: ([
-        ['risky', 'Nur bei riskanten Befehlen (Standard)'],
-        ['all', 'Bei jeder Rückfrage'],
-        ['off', 'Nie (Claude fragt normal)'],
-      ] as Array<[ApprovalMode, string]>).map(([mode, label]) => ({
-        label, type: 'radio' as const, checked: approvalMode === mode, click: () => setApprovalMode(mode),
+        ['risky', 'tray.approvals.risky'],
+        ['all', 'tray.approvals.all'],
+        ['off', 'tray.approvals.off'],
+      ] as const).map(([mode, key]) => ({
+        label: t(lang, key), type: 'radio' as const, checked: approvalMode === mode, click: () => setApprovalMode(mode),
+      })),
+    },
+    {
+      label: t(lang, 'tray.language'),
+      submenu: ([['de', 'Deutsch'], ['en', 'English']] as const).map(([code, label]) => ({
+        label, type: 'radio' as const, checked: lang === code, click: () => setLanguage(code),
       })),
     },
     { type: 'separator' },
     {
-      label: 'Hooks installieren',
+      label: t(lang, 'tray.installHooks'),
       click: async () => { const r = installHooksAction(); await toast(r.text, r.ok ? 'info' : 'error'); },
     },
     {
-      label: 'Hooks entfernen',
+      label: t(lang, 'tray.removeHooks'),
       click: async () => {
-        try { uninstallHooks(settingsPath()); await toast('Hooks entfernt.'); }
+        try { uninstallHooks(settingsPath()); await toast(t(lang, 'dialog.hooksRemoved')); }
         catch (e) { appLog('error', 'installer: uninstall failed', e); await toast((e as Error).message, 'error'); }
       },
     },
     { type: 'separator' },
-    { label: 'Dev-Log (heute) öffnen', click: () => void openRecap(false) },
-    { label: 'Wochen-Recap öffnen', click: () => void openRecap(true) },
-    { label: 'Rollen-Datei öffnen (roles.json)', click: () => void shell.openPath(rolesPath) },
-    { label: 'Diagnose-Log anzeigen', click: () => { const p = appLogPath(); if (p) shell.showItemInFolder(p); } },
-    { label: 'Rollen neu laden', click: () => { roles = loadRoles(rolesPath); publish(); } },
+    { label: t(lang, 'tray.devLog'), click: () => void openRecap(false) },
+    { label: t(lang, 'tray.weekRecap'), click: () => void openRecap(true) },
+    { label: t(lang, 'tray.rolesOpen'), click: () => void shell.openPath(rolesPath) },
+    { label: t(lang, 'tray.rolesReload'), click: () => { roles = loadRoles(rolesPath); publish(); } },
+    { label: t(lang, 'tray.diagnostics'), click: () => { const p = appLogPath(); if (p) shell.showItemInFolder(p); } },
     { type: 'separator' },
     {
-      label: 'Wach bleiben, solange Agents arbeiten',
+      label: t(lang, 'tray.awake'),
       type: 'checkbox',
-      checked: true,
-      click: (item) => awake.setEnabled(item.checked),
+      checked: awakeEnabled,
+      click: (item) => { awakeEnabled = item.checked; awake.setEnabled(item.checked); },
     },
     {
-      label: 'Mit Windows starten',
+      label: t(lang, 'tray.autostart'),
       type: 'checkbox',
       checked: app.getLoginItemSettings().openAtLogin,
       enabled: app.isPackaged,
       click: (item) => app.setLoginItemSettings({ openAtLogin: item.checked }),
     },
     { type: 'separator' },
-    { label: 'Beenden', click: () => app.quit() },
+    { label: t(lang, 'tray.quit'), click: () => app.quit() },
   ]));
 }
 
@@ -238,6 +270,8 @@ async function main(): Promise<void> {
   const config = loadConfig(configDir);
   configDirPath = configDir;
   approvalMode = parseApprovalMode(config.approvals);
+  lang = parseLanguage(config.language) ?? defaultLanguage(app.getLocale());
+  livePort = config.port;
   // keep an already staged hook in sync with this app version (protocol changes must not silently break it)
   try { if (existsSync(join(configDir, 'hook.js'))) stageHook(hookPath(), configDir); } catch (e) { appLog('warn', 'main: could not refresh staged hook.js', e); }
   eventLog = new EventLog(join(configDir, 'logs'));
@@ -250,10 +284,11 @@ async function main(): Promise<void> {
   win = createOverlay();
   win.webContents.on('did-finish-load', () => {
     resetClickThrough(win);
+    win.webContents.send('language', lang);
     win.webContents.send('visibility', true);
     win.webContents.send('state', applyRoles(view(), roles));
     win.webContents.send('permissions', queue.pending());
-    win.webContents.send('hint', 'Kayy Office läuft · wartet auf Agents · Strg+Alt+O');
+    win.webContents.send('hint', t(lang, 'hint.start'));
     setTimeout(() => { if (!win.isDestroyed()) win.webContents.send('hint', null); }, HINT_MS);
   });
   win.webContents.on('render-process-gone', (_e, details) => {
@@ -273,18 +308,24 @@ async function main(): Promise<void> {
     const a = state.agents[info.agentId];
     if (a) { state = reduce(state, { ts: Date.now(), sessionId: a.sessionId, agentId: a.id, event: 'PreToolUse', tool: info.tool, cwd: a.cwd }); syncHousekeeping(); publish(); }
   });
+  ipcMain.handle('status', (e): WelcomeStatus | null => {
+    if (!welcomeWin || e.sender !== welcomeWin.webContents) return null;
+    let text: string | null = null;
+    try { text = readFileSync(settingsPath(), 'utf8'); } catch { /* no settings file yet */ }
+    return { hooks: hooksInstalled(text), mode: approvalMode, port: livePort };
+  });
   ipcMain.handle('action', async (e, name: unknown) => {
     if (!welcomeWin || e.sender !== welcomeWin.webContents) return '';
     if (name === 'install-hooks') return installHooksAction().text;
-    if (name === 'demo') { startDemo(DEMO_MS); return 'Demo läuft 15 Sekunden – schau an den oberen Bildschirmrand.'; }
+    if (name === 'demo') { startDemo(DEMO_MS); return t(lang, 'dialog.demoRunning'); }
     if (name === 'close') { welcomeWin.close(); return ''; }
     return '';
   });
   app.on('before-quit', () => queue.dispose());
 
-  if (flag('demo')) {
+  if (flag('demo') || demoCount) {
     startDemo(null);
-    void queue.add({ id: 'demo', agentId: 'reviewer', tool: 'Bash', summary: 'git push --force origin main' });
+    if (!flag('no-card')) void queue.add({ id: 'demo', agentId: demoCount ? `agent${Math.min(3, demoCount)}` : 'reviewer', tool: 'Bash', summary: 'git push --force origin main' });
   } else {
     const server = await startServer({
       token: config.token,
@@ -311,6 +352,7 @@ async function main(): Promise<void> {
         return queue.add({ id: randomUUID(), agentId: p.agentId, tool: p.tool, summary: p.summary }, signal);
       },
     });
+    livePort = server.port;
     if (server.port !== config.port) saveConfigPort(configDir, server.port);
     app.on('before-quit', () => { void server.close(); });
   }
@@ -326,7 +368,7 @@ async function main(): Promise<void> {
   const shot = flagValue('screenshot');
   if (flag('welcome')) openWelcome();
   if (shot) await screenshotAndQuit(shot);
-  else if (!perf && !flag('demo') && !flag('no-welcome') && !config.welcomeShown) {
+  else if (!perf && !flag('demo') && !demoCount && !flag('no-welcome') && !config.welcomeShown) {
     openWelcome();
     updateConfig(configDir, { welcomeShown: true });
   }

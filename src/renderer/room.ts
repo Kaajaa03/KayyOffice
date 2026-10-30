@@ -7,9 +7,9 @@ export const KITCHEN_W = 40;
 export const LOUNGE_W = 88;
 export const SEAT_W = 38;
 export const CLUSTER_W = SEAT_W * 2;
-export const CLUSTER_GAP = 12;
-export const ROW_H = 60;
-export const ZONE_GAP = 6;
+const CLUSTER_GAP = 12;
+const ROW_H = 60;
+const ZONE_GAP = 6;
 /** Room budget: ~850x300 css px so the permission card still fits below. */
 export const MAX_W = 425;
 export const MAX_H = 150;
@@ -27,7 +27,7 @@ export interface Seat extends Pt {
   aisleY: number;
 }
 
-export interface Cluster extends Pt { row: number }
+interface Cluster extends Pt { row: number }
 
 export interface Room {
   w: number;
