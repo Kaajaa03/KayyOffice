@@ -1,6 +1,7 @@
 import { atom, read, type EngineInterface, type RenderInput } from 'claude-code'
-import type { AgentRow, OverlayLink, PendingRow } from '../types'
+import type { AgentRow, AutopilotState, OverlayLink, PendingRow } from '../types'
 import { answerFromPane } from './approver'
+import { autopilotLine } from './pilot'
 import { MAIN, type Office } from './state'
 
 const agents = atom({ plugin: 'kayy-office', key: 'agents' } as const, [] as AgentRow[], { shape: 'agents-1' })
@@ -8,6 +9,8 @@ const pending = atom({ plugin: 'kayy-office', key: 'pending' } as const, [] as P
 const cost = atom({ plugin: 'kayy-office', key: 'cost' } as const, null as number | null)
 const counts = atom({ plugin: 'kayy-office', key: 'counts' } as const, { haiku: 0, sonnet: 0, opus: 0 })
 const isOff = atom({ plugin: 'kayy-office', key: 'isOff' } as const, false)
+const autopilot = atom({ plugin: 'kayy-office', key: 'autopilot' } as const, { isOn: false, auto: 0, asked: 0 } as AutopilotState)
+const decision = atom({ plugin: 'kayy-office', key: 'decision' } as const, null as string | null)
 const link = atom({ plugin: 'kayy-office', key: 'link' } as const, 'unknown' as OverlayLink)
 
 const STATUS: Record<AgentRow['status'], string> = {
@@ -55,9 +58,12 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>, off
   const routed = await read($, counts)
   const routerOff = await read($, isOff)
   const overlay = await read($, link)
+  const pilot = await read($, autopilot)
+  const open = await read($, decision)
 
   return (
     <Box flexDirection="column">
+      {open !== null && <Text bold color="yellow">Entscheidung offen: {open}</Text>}
       <Text bold>Agents</Text>
       {list.length === 0 && <Text dimColor>Noch keine Agents.</Text>}
       {ordered(list).map(({ row, depth }) => {
@@ -77,6 +83,7 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>, off
       <Text>
         Router{routerOff ? ' (aus)' : ''}: haiku {routed.haiku} · sonnet {routed.sonnet} · opus {routed.opus}
       </Text>
+      <Text>{autopilotLine(pilot)}</Text>
       <Text dimColor>Overlay: {overlay === 'ok' ? 'verbunden' : overlay === 'off' ? 'nicht erreichbar' : 'unbekannt'}</Text>
       {asks.length > 0 && <Text> </Text>}
       {asks.length > 0 && <Text bold>Freigaben</Text>}

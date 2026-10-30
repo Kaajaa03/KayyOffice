@@ -257,7 +257,7 @@ test('/office opens the pane, closes it when open, and /office status sums up', 
   expect((await $.command.run({ command: 'office', args: '' })).text).toBe('Kayy Office geöffnet.')
   expect(opened).toEqual(['open:kayy-office'])
   expect((await $.command.run({ command: 'office', args: 'status' })).text).toContain('Kosten: $0.42')
-  expect((await $.command.run({ command: 'office', args: 'x' })).text).toBe('Nutzung: /office [status]')
+  expect((await $.command.run({ command: 'office', args: 'x' })).text).toContain('Nutzung: /office [status]')
 })
 
 test('/office closes an open pane', async ($: any, on: any) => {

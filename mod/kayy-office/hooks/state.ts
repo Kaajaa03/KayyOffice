@@ -23,6 +23,9 @@ export type Office = {
   spawned: Map<string, { parentId?: string; type: string; model?: string }>
   waiters: Map<string, (decision: 'allow' | 'deny' | 'ask' | undefined) => void>
   rules?: Rules
+  /** Cached from $.store at session start: autopilot (default off), orchestrator (default on). */
+  isAutopilot?: boolean
+  isOrchestrator?: boolean
 }
 
 export const newOffice = (): Office => ({

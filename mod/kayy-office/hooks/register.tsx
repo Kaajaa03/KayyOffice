@@ -4,6 +4,9 @@ import { PANE_ID, approve, ioFor, shouldForward, type CheckEvent } from './appro
 import { errorOf, fileOf, makeEvent, type EventName } from './mapping'
 import { sendEvent } from './overlay'
 import { renderPane } from './pane'
+import { autopilotCheck } from './autopilot'
+import { withOrchestrator } from './orchestrator'
+import { AUTOPILOT_WARNING, autopilotIoFor, autopilotSummary, decisionOf, loadSwitches, setAutopilot, setDecision, setOrchestrator } from './pilot'
 import { aliasOf, countRoute, routeFor, routerCommand, showStatus, summary, usd } from './router'
 import { MAIN, newOffice, setAgent, type Office } from './state'
 
@@ -49,7 +52,7 @@ async function quietly(work: Promise<unknown>) {
 const modelOf = (office: Office, agentId: string | undefined) =>
   agentId === undefined ? office.mainModel : office.spawned.get(agentId)?.model
 
-async function officeStatus($: EngineInterface) {
+async function officeStatus($: EngineInterface, office: Office) {
   const list = await read($, agents)
   const busy = list.filter(a => a.status === 'running').length
   const asks = (await read($, pending)).length
@@ -59,6 +62,8 @@ async function officeStatus($: EngineInterface) {
     `Kayy Office: ${list.length} Agents (${busy} aktiv), ${asks} offene Freigaben.`,
     `Kosten: ${spent === null ? 'unbekannt' : `$${spent.toFixed(2)}`}`,
     `Router: ${routerLine}`,
+    await autopilotSummary($),
+    `Orchestrator ${office.isOrchestrator === false ? 'aus' : 'an'}`,
   ].join('\n')
 }
 
@@ -70,6 +75,27 @@ async function toggleOffice($: EngineInterface) {
   }
   await $.ui.open({ id: PANE_ID, title: TITLE })
   return 'Kayy Office geöffnet.'
+}
+
+const USAGE = 'Nutzung: /office [status] | /office autopilot [on|off|status] | /office orchestrator [on|off|status]'
+
+async function autopilotCommand($: EngineInterface, office: Office, value: 'on' | 'off' | 'status') {
+  if (value === 'on') {
+    await setAutopilot($, office, true)
+    return `Autopilot an: Routine (Lesen/Bearbeiten im Projekt, sichere Befehle) wird automatisch freigegeben. ${AUTOPILOT_WARNING} ${await autopilotSummary($)}`
+  }
+  if (value === 'off') {
+    await setAutopilot($, office, false)
+    return `Autopilot aus: jede Freigabe läuft wie gewohnt. ${await autopilotSummary($)}`
+  }
+  return autopilotSummary($)
+}
+
+async function orchestratorCommand($: EngineInterface, office: Office, value: 'on' | 'off' | 'status') {
+  if (value !== 'status') await setOrchestrator($, office, value === 'on')
+  return office.isOrchestrator !== false
+    ? 'Orchestrator an: Claude delegiert passende Aufgaben an kayy-scout/-coder/-architect und fragt nur bei echten Entscheidungen.'
+    : 'Orchestrator aus: kein Zusatz im System-Prompt.'
 }
 
 /** Once per install: kayy-office contains the router, so kayy-router must not run beside it. */
@@ -86,7 +112,7 @@ export const register: Register = on => {
 
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'router', description: 'Model routing for subagents: /router [status|on|off]' })
-    await $.command.register({ name: 'office', description: 'Kayy Office Pane öffnen/schließen: /office [status]', argumentHint: '[status]' })
+    await $.command.register({ name: 'office', description: 'Kayy Office: Pane öffnen/schließen, Status, Autopilot, Orchestrator', argumentHint: '[status | autopilot on|off|status | orchestrator on|off|status]' })
     const started = await next(e)
     office.sessionId = undefined
     office.cwd = e.cwd
@@ -102,6 +128,7 @@ export const register: Register = on => {
     if (spent !== undefined) await quietly(update($, cost, () => spent))
     await emit($, office, 'SessionStart', undefined, { model: office.mainModel, costUsd: spent })
     await quietly(warnRouterOnce($))
+    await quietly(loadSwitches($, office))
     return started
   }).catch(($, e, next) => next(e))
 
@@ -109,9 +136,14 @@ export const register: Register = on => {
 
   on('command.run', { command: 'office' }, async ($, e) => {
     const arg = e.args.trim().toLowerCase()
-    if (arg === 'status') return { text: await officeStatus($) }
+    if (arg === 'status') return { text: await officeStatus($, office) }
     if (arg === '') return { text: await toggleOffice($) }
-    return { text: 'Nutzung: /office [status]' }
+    const [sub, value = 'status', ...more] = arg.split(/\s+/)
+    if (more.length === 0 && (value === 'on' || value === 'off' || value === 'status')) {
+      if (sub === 'autopilot') return { text: await autopilotCommand($, office, value) }
+      if (sub === 'orchestrator') return { text: await orchestratorCommand($, office, value) }
+    }
+    return { text: USAGE }
   })
 
   on('tool.call', async ($, e, next) => {
@@ -119,7 +151,13 @@ export const register: Register = on => {
     const file = fileOf(e)
     await emit($, office, 'PreToolUse', e.agentId, { tool: e.tool, file, model: modelOf(office, e.agentId) })
     await quietly(setAgent($, row, { status: 'running', tool: e.tool, file }))
-    const ran = await next(e)
+    // A question or a plan for the person: the office shows that a decision is wanted (never answers it).
+    const question = decisionOf(e.tool, e)
+    if (question !== undefined) {
+      await emit($, office, 'Notification', e.agentId, { tool: e.tool, message: `Entscheidung: ${question}`, model: modelOf(office, e.agentId) })
+      await quietly(setDecision($, question))
+    }
+    const ran = await next(e).finally(() => (question !== undefined ? quietly(setDecision($, null)) : undefined))
     const message = errorOf(e.tool, ran)
     await emit($, office, 'PostToolUse', e.agentId, { tool: e.tool, file, message, model: modelOf(office, e.agentId) })
     await quietly(setAgent($, row, { status: 'running', tool: undefined, file: undefined }))
@@ -129,6 +167,9 @@ export const register: Register = on => {
   // Approver: only a real call's core `ask` meant for a person is ever put to the overlay.
   on('tool.check', async ($, e, next) => {
     const core = await next(e)
+    // Autopilot first: routine in the project needs no card at all. Never touches a core allow/deny.
+    const auto = await autopilotCheck(autopilotIoFor($, office), e as CheckEvent, core).catch(() => undefined)
+    if (auto !== undefined) return auto
     if (!shouldForward(e as CheckEvent, core)) return core
     try {
       const at = await where($, office)
@@ -188,6 +229,13 @@ export const register: Register = on => {
     office.spawned.clear()
     await quietly(update($, pending, () => []))
     return next(e)
+  }).catch(($, e, next) => next(e))
+
+  // Orchestration policy: one short section at the end of the system prompt, while on.
+  on('prompt.compose', async ($, e, next) => {
+    const composed = await next(e)
+    if (office.isOrchestrator === undefined) await quietly(loadSwitches($, office))
+    return { sections: withOrchestrator(composed.sections, office.isOrchestrator !== false) }
   }).catch(($, e, next) => next(e))
 
   on('ui.render', { component: 'Pane', requestId: 'kayy-office' }, ($, e) => renderPane($, e, office))

@@ -14,6 +14,9 @@ export type AgentRow = {
 /** A permission ask waiting for an answer from the overlay or the pane. */
 export type PendingRow = { id: string; agentId: string; tool: string; summary: string }
 
+/** Autopilot switch and its counters: calls let through, calls left to the normal path. */
+export type AutopilotState = { isOn: boolean; auto: number; asked: number }
+
 /** Whether the overlay answered the last request. */
 export type OverlayLink = 'unknown' | 'ok' | 'off'
 
@@ -26,6 +29,8 @@ declare module 'claude-code' {
       pending: Shaped<PendingRow[]>
       cost: number | null
       link: OverlayLink
+      autopilot: AutopilotState
+      decision: string | null
     }
   }
 }
