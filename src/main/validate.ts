@@ -45,6 +45,7 @@ export function parseEvent(raw: unknown): AgentEvent | null {
   if (typeof r.costUsd === 'number' && Number.isFinite(r.costUsd) && r.costUsd >= 0) out.costUsd = r.costUsd;
   const progress = parseProgress(r.progress);
   if (progress) out.progress = progress;
+  else if (r.progress === null) out.progress = null; // explicit "task list is gone"
   if (parentId) out.parentId = parentId;
   if (tool) out.tool = tool;
   if (message !== undefined) out.message = message;

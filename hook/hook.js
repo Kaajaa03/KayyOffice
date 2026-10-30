@@ -34,7 +34,7 @@ function todoProgress(input) {
     if (t.status === 'completed') doneCount++;
     else if (t.status === 'in_progress' && current === undefined) current = t.activeForm || t.content;
   }
-  if (total < 1 || total > 99) return undefined;
+  if (total < 1 || total > 99) return null; // a list with nothing usable clears the old bar
   const text = typeof current === 'string' ? current.replace(CONTROL, '').trim().slice(0, 80) : '';
   return text ? { done: doneCount, total, current: text } : { done: doneCount, total };
 }

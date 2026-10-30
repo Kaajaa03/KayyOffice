@@ -3,6 +3,7 @@ import { CARD_H, CARD_W, armDelay, drawPermissionCard } from './card';
 import type { Hit } from './card';
 import { DeskLayout, officeStats } from './scene';
 import { ClickGuard } from './clickguard';
+import { InteractiveSync } from './interactive';
 import { FrameGate, animTime, animationMode } from './loop';
 import { t } from '../shared/i18n';
 import type { Lang } from '../shared/i18n';
@@ -46,7 +47,7 @@ let hint: string | null = null;
 let permissions: PermissionRequestInfo[] = [];
 let hits: Hit[] = [];
 let hover: Hit | null = null;
-let interactive = false;
+const sync = new InteractiveSync();
 let visible = true;
 let looping = false;
 
@@ -320,7 +321,7 @@ const hitAt = (x: number, y: number): Hit | null =>
 window.addEventListener('mousemove', (e) => {
   const h = hitAt(e.clientX, e.clientY);
   const want = h !== null;
-  if (want !== interactive) { interactive = want; kayy.setInteractive(want); canvas.style.cursor = want ? 'pointer' : 'default'; }
+  if (sync.want(want)) { kayy.setInteractive(want); canvas.style.cursor = want ? 'pointer' : 'default'; }
   if (h?.id !== hover?.id || h?.decision !== hover?.decision) { hover = h; draw(performance.now()); }
 });
 window.addEventListener('mousedown', (e) => guard.down(hitAt(e.clientX, e.clientY), performance.now()));
@@ -333,12 +334,16 @@ kayy.onState((s) => { state = s; wake(); safeDraw(performance.now()); });
 kayy.onPermissions((p) => {
   permissions = p;
   guard.show(p[0]?.id ?? null, performance.now(), p[0] ? armDelay(p[0]) : undefined);
-  if (!p.length && interactive) { interactive = false; hover = null; kayy.setInteractive(false); }
+  if (!p.length && sync.active) { sync.reset(); hover = null; kayy.setInteractive(false); }
   safeDraw(performance.now());
 });
 kayy.onHint((text) => { hint = text; safeDraw(performance.now()); });
 kayy.onLanguage((l) => { lang = l; wake(); safeDraw(performance.now()); });
 motionQuery.addEventListener('change', (e) => { reduced = e.matches; wake(); safeDraw(performance.now()); });
-kayy.onVisibility((v) => { visible = v; if (v) wake(); });
+kayy.onVisibility((v) => {
+  visible = v;
+  if (!v) { sync.reset(); hover = null; } // main resets click-through on hide; forget our belief too
+  else wake();
+});
 window.addEventListener('resize', () => { resize(); staticKey = ''; draw(performance.now()); });
 resize();

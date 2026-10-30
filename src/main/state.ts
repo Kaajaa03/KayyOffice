@@ -29,7 +29,7 @@ function upsert(state: AppState, e: AgentEvent, patch: Partial<Agent>): AppState
     model: e.model ?? prev?.model,
     costUsd: e.costUsd ?? prev?.costUsd,
     file: e.file ?? prev?.file,
-    progress: e.progress ?? prev?.progress,
+    progress: e.progress === null ? undefined : (e.progress ?? prev?.progress),
     message: undefined,
     ...patch,
     lastEventTs: e.ts,
@@ -88,8 +88,9 @@ export function nextDueMs(state: AppState, now: number): number | null {
   return due === Infinity ? null : Math.max(0, due - now);
 }
 
-export function pruneStale(state: AppState, now: number, maxAgeMs: number): AppState {
+/** Removes agents that stayed quiet longer than `staleAfter`; the same rule nextDueMs schedules by. */
+export function pruneStale(state: AppState, now: number): AppState {
   const entries = Object.entries(state.agents);
-  const kept = entries.filter(([, a]) => now - a.lastEventTs < (a.status === 'waiting' ? maxAgeMs * 8 : maxAgeMs));
+  const kept = entries.filter(([, a]) => now - a.lastEventTs < staleAfter(a));
   return kept.length === entries.length ? state : { agents: Object.fromEntries(kept) };
 }

@@ -37,8 +37,8 @@ export interface AgentEvent {
   file?: string;
   /** Session cost so far in USD (reported on session-level events). */
   costUsd?: number;
-  /** Task-list progress (TodoWrite): completed / total and the task in progress. */
-  progress?: Progress;
+  /** Task-list progress (TodoWrite): completed / total and the task in progress. `null` clears it. */
+  progress?: Progress | null;
 }
 
 export interface Progress {

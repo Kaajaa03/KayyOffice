@@ -21,12 +21,13 @@ function readSettings(path: string): Settings {
     const parsed = JSON.parse(text);
     if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) throw new Error('not an object');
     return parsed as Settings;
-  } catch (err) {
-    throw new Error(`Cannot parse ${path} (settings.json is not valid JSON): ${(err as Error).message}`);
+  } catch {
+    // no parser message: V8 quotes a snippet of the file, which may be a secret
+    throw new Error(`Cannot parse ${path} (settings.json is not valid JSON)`);
   }
 }
 
-/** Copies the current file to `<file>.kayy-backup-<ts>` and keeps only the newest few. */
+/** Copies the current file to `<file>.kayy-backup-<ts>`; see pruneBackups for what is kept. */
 function backup(settingsPath: string): string | null {
   if (!existsSync(settingsPath)) return null;
   const backupPath = `${settingsPath}.kayy-backup-${Date.now()}`;
@@ -35,16 +36,19 @@ function backup(settingsPath: string): string | null {
   return backupPath;
 }
 
+/** Keeps KEEP_BACKUPS files: the very first one (the state before Kayy ever touched the file)
+ *  plus the newest ones. Only `<name>.kayy-backup-<digits>` files are ever considered. */
 function pruneBackups(settingsPath: string): void {
   const dir = dirname(settingsPath);
   const prefix = `${basename(settingsPath)}.kayy-backup-`;
   const stamp = (n: string) => Number(n.slice(prefix.length));
   try {
-    const old = readdirSync(dir)
+    const oldestFirst = readdirSync(dir)
       .filter((n) => n.startsWith(prefix) && /^\d+$/.test(n.slice(prefix.length)))
-      .sort((a, b) => stamp(b) - stamp(a))
-      .slice(KEEP_BACKUPS);
-    for (const n of old) unlinkSync(join(dir, n));
+      .sort((a, b) => stamp(a) - stamp(b));
+    if (oldestFirst.length <= KEEP_BACKUPS) return;
+    const keep = new Set([oldestFirst[0], ...oldestFirst.slice(-(KEEP_BACKUPS - 1))]);
+    for (const n of oldestFirst) if (!keep.has(n)) unlinkSync(join(dir, n));
   } catch { /* backup pruning is housekeeping; the install itself must not fail because of it */ }
 }
 

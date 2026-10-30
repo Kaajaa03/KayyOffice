@@ -138,7 +138,7 @@ describe('settings robustness', () => {
     expect(() => uninstallHooks(p)).toThrow(/settings\.json/);
     expect(readFileSync(p, 'utf8')).toBe('{ broken');
   });
-  it('keeps only the newest 5 backups per settings file', () => {
+  it('keeps 5 backups per settings file: the very first one (state before Kayy) plus the newest', () => {
     const dir = tmp();
     const p = join(dir, 'settings.json');
     writeFileSync(p, '{}');
@@ -147,8 +147,10 @@ describe('settings robustness', () => {
     installHooks(p, HOOK);
     const backups = readdirSync(dir).filter((n) => n.startsWith('settings.json.kayy-backup-'));
     expect(backups).toHaveLength(5);
-    expect(backups).not.toContain('settings.json.kayy-backup-1');
+    expect(backups).toContain('settings.json.kayy-backup-1');
+    expect(backups).not.toContain('settings.json.kayy-backup-2');
     expect(backups).not.toContain('settings.json.kayy-backup-3');
+    expect(backups).not.toContain('settings.json.kayy-backup-4');
     expect(backups).toContain('settings.json.kayy-backup-7');
     expect(existsSync(join(dir, 'other.json.kayy-backup-1'))).toBe(true);
   });

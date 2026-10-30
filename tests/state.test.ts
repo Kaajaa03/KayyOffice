@@ -39,15 +39,14 @@ describe('reduce', () => {
   it('late PostToolUse for unknown session creates exactly one agent; pruneStale removes it', () => {
     const s = reduce(initialState(), ev({ event: 'PostToolUse', sessionId: 'x', agentId: 'x', ts: 1000 }));
     expect(Object.keys(s.agents)).toEqual(['x']);
-    expect(Object.keys(pruneStale(s, 1000 + 60_000, 30_000).agents)).toEqual([]);
+    expect(Object.keys(pruneStale(s, 1000 + STALE_MS).agents)).toEqual([]);
   });
   it('pruneStale keeps a waiting agent much longer than others', () => {
     let s = reduce(initialState(), ev({ sessionId: 'w', agentId: 'w', event: 'Notification', ts: 0 }));
     s = reduce(s, ev({ sessionId: 'k', agentId: 'k', event: 'PreToolUse', ts: 0 }));
     const MIN = 60_000;
-    const after20 = pruneStale(s, 20 * MIN, 15 * MIN);
-    expect(Object.keys(after20.agents)).toEqual(['w']);
-    expect(Object.keys(pruneStale(s, 3 * 60 * MIN, 15 * MIN).agents)).toEqual([]);
+    expect(Object.keys(pruneStale(s, 20 * MIN).agents)).toEqual(['w']);
+    expect(Object.keys(pruneStale(s, 3 * 60 * MIN).agents)).toEqual([]);
   });
   it('SubagentStop without start does not throw or change state', () => {
     const s0 = initialState();

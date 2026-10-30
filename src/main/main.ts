@@ -22,7 +22,7 @@ import { startServer } from './server';
 import { SourceGate } from './source';
 import { hooksInstalled, tooltipText } from './status';
 import type { WelcomeStatus } from './status';
-import { initialState, nextDueMs, pruneStale, reduce, STALE_MS, tick } from './state';
+import { initialState, nextDueMs, pruneStale, reduce, tick } from './state';
 import { createOverlay, createWelcome, toggleOverlay } from './window';
 import { defaultLanguage, parseLanguage, t } from '../shared/i18n';
 import type { Lang } from '../shared/i18n';
@@ -132,7 +132,7 @@ function syncHousekeeping(): void {
   housekeeping = setTimeout(() => {
     housekeeping = null;
     const now = Date.now();
-    const next = pruneStale(tick(state, now), now, STALE_MS);
+    const next = pruneStale(tick(state, now), now);
     if (next !== state) { state = next; publish(); }
     syncHousekeeping();
   }, delay);
@@ -298,10 +298,13 @@ async function main(): Promise<void> {
   // a second launch (double click) must not look like "nothing happened"
   app.on('second-instance', () => { showOverlay(); openWelcome(); });
 
-  ipcMain.on('interactive', (_e, v: unknown) => {
+  // only the overlay window may drive click-through and decisions (the welcome window shares the preload)
+  ipcMain.on('interactive', (e, v: unknown) => {
+    if (e.sender !== win.webContents) return;
     if (typeof v === 'boolean') win.setIgnoreMouseEvents(!v, { forward: true });
   });
-  ipcMain.on('permission:decide', (_e, id: unknown, decision: unknown) => {
+  ipcMain.on('permission:decide', (e, id: unknown, decision: unknown) => {
+    if (e.sender !== win.webContents) return;
     if (typeof id !== 'string' || (decision !== 'allow' && decision !== 'deny')) return;
     const info = queue.pending().find((p) => p.id === id);
     if (!info || !queue.resolve(id, decision)) return;
@@ -375,7 +378,8 @@ async function main(): Promise<void> {
 }
 
 // Non-fatal by design: a stray rejection in a tray app must be logged, not kill the overlay.
-process.on('uncaughtException', (e) => appLog('error', 'uncaughtException', e));
-process.on('unhandledRejection', (e) => appLog('error', 'unhandledRejection', e));
+// Logged and survived: a stray error in one handler must not take the whole overlay down.
+process.on('uncaughtException', (e) => { console.error('uncaughtException', e); appLog('error', 'uncaughtException', e); });
+process.on('unhandledRejection', (e) => { console.error('unhandledRejection', e); appLog('error', 'unhandledRejection', e); });
 
 main().catch((e) => { appLog('error', 'main: startup failed', e); console.error(e); app.quit(); });

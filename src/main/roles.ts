@@ -34,7 +34,9 @@ function valid(r: unknown): r is RoleDef {
   return true;
 }
 
-const MAX_MATCH_CHARS = 200; // bounds the cost of a user-supplied (possibly nasty) regex
+// Bounds the work of ordinary patterns. A pathological pattern in the user's own roles.json
+// (nested quantifiers) can still stall the main process: roles.json is trusted input.
+const MAX_MATCH_CHARS = 200;
 const patterns = new WeakMap<RoleDef, RegExp | null>();
 
 function patternOf(r: RoleDef): RegExp | null {
