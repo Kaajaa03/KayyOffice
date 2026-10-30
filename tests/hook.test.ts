@@ -48,6 +48,18 @@ describe('hook.js', () => {
     await runHook(dir, JSON.stringify({ hook_event_name: 'PreToolUse', session_id: 's1', tool_name: 'Edit', cwd: 'C:\\p', tool_input: { file_path: 'C:\\p\\src\\a.ts' } }));
     expect(got[0].file).toBe('C:\\p\\src\\a.ts');
   });
+  it('maps PostToolUseFailure to a PostToolUse ERROR event without forwarding any error text', async () => {
+    const { dir, got } = await setup(48136);
+    await runHook(dir, JSON.stringify({ hook_event_name: 'PostToolUseFailure', session_id: 's1', tool_name: 'Bash', tool_use_id: 't1', cwd: 'C:\\p', tool_input: { command: 'x' }, error: 'Authorization: Bearer abc123' }));
+    expect(got).toHaveLength(1);
+    expect(got[0]).toMatchObject({ event: 'PostToolUse', tool: 'Bash', message: 'ERROR: Bash failed' });
+    expect(JSON.stringify(got[0])).not.toContain('abc123');
+  });
+  it('keeps the is_error path of PostToolUse', async () => {
+    const { dir, got } = await setup(48137);
+    await runHook(dir, JSON.stringify({ hook_event_name: 'PostToolUse', session_id: 's1', tool_name: 'Edit', cwd: 'C:\\p', tool_response: { is_error: true, content: 'secret' } }));
+    expect(got[0]).toMatchObject({ event: 'PostToolUse', message: 'ERROR: Edit failed' });
+  });
   it('maps agent_id to a child agent', async () => {
     const { dir, got } = await setup(48130);
     await runHook(dir, JSON.stringify({ hook_event_name: 'PreToolUse', session_id: 's1', agent_id: 'sub9', tool_name: 'Read', cwd: 'C:\\p' }));

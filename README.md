@@ -57,7 +57,7 @@ Hotkey **Ctrl+Alt+O** blendet das Overlay ein/aus. Neue Claude-Code-Sessions nut
 `namePattern` (Regex) trifft auf Agent-ID und Subagent-Typ, `cwdContains` auf den Arbeitsordner. Erster Treffer gewinnt. Agents desselben Projekts (letzter Ordner von `cwd`) sitzen zusammen in einem Raum.
 
 ## Permissions im Overlay
-Der `PermissionRequest`-Hook fragt die App. Klick auf **Allow/Deny** entscheidet. Keine Antwort in 25 s, App aus oder Fehler ⇒ ganz normaler Claude-Code-Prompt.
+Der `PermissionRequest`-Hook fragt die App. Klick auf **Allow/Deny** entscheidet. Keine Antwort in 20 s, App aus oder Fehler ⇒ ganz normaler Claude-Code-Prompt.
 
 ## Dev-Log
 Events werden pro Tag als JSONL unter `%APPDATA%\KayyOffice\logs` gesammelt (ohne LLM). Tray → „Dev-Log (heute) öffnen“ erzeugt Markdown, Zielordner per `devLogDir` in `config.json` einstellbar (z. B. Obsidian-Vault).

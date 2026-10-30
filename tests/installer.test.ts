@@ -16,13 +16,21 @@ describe('installHooks', () => {
     const s = read(p);
     for (const e of EVENT_NAMES) expect(s.hooks[e]).toBeDefined();
   });
-  it('registers a blocking PermissionRequest hook with a 30 s timeout', () => {
+  it('registers a blocking PermissionRequest hook with a 25 s timeout', () => {
     const p = join(tmp(), 'settings.json');
     installHooks(p, HOOK);
     const h = read(p).hooks.PermissionRequest[0].hooks[0];
     expect(h.command).toContain('--permission');
     expect(h.command).toContain(MARKER);
-    expect(h.timeout).toBe(30);
+    expect(h.timeout).toBe(25);
+  });
+  it('registers PostToolUseFailure with matcher * so failed tools turn the agent red', () => {
+    const p = join(tmp(), 'settings.json');
+    installHooks(p, HOOK);
+    const e = read(p).hooks.PostToolUseFailure;
+    expect(e).toHaveLength(1);
+    expect(e[0].matcher).toBe('*');
+    expect(e[0].hooks[0].command).toContain(MARKER);
   });
   it('keeps foreign hooks and other settings', () => {
     const p = join(tmp(), 'settings.json');
@@ -86,5 +94,62 @@ describe('uninstallHooks', () => {
     const s = read(p);
     expect(s.hooks.Stop).toEqual([foreign]);
     expect(s.hooks.PreToolUse).toBeUndefined();
+    expect(s.hooks.PostToolUseFailure).toBeUndefined();
+  });
+});
+
+describe('settings robustness', () => {
+  it('tolerates a UTF-8 BOM', () => {
+    const p = join(tmp(), 'settings.json');
+    writeFileSync(p, '﻿' + JSON.stringify({ theme: 'dark' }));
+    installHooks(p, HOOK);
+    const s = read(p);
+    expect(s.theme).toBe('dark');
+    expect(s.hooks.Stop).toHaveLength(1);
+  });
+  it.each([['empty', ''], ['whitespace', ' \r\n\t ']])('treats an %s settings.json as {}', (_n, content) => {
+    const p = join(tmp(), 'settings.json');
+    writeFileSync(p, content);
+    installHooks(p, HOOK);
+    expect(read(p).hooks.Stop).toHaveLength(1);
+  });
+  it('uninstall tolerates a BOM and leaves no temp files behind', () => {
+    const dir = tmp();
+    const p = join(dir, 'settings.json');
+    installHooks(p, HOOK);
+    writeFileSync(p, '﻿' + readFileSync(p, 'utf8'));
+    uninstallHooks(p);
+    expect(read(p).hooks).toEqual({});
+    expect(readdirSync(dir).filter((n) => n.includes('.tmp'))).toEqual([]);
+  });
+  it('uninstall creates a backup of the previous file', () => {
+    const dir = tmp();
+    const p = join(dir, 'settings.json');
+    installHooks(p, HOOK);
+    const before = readFileSync(p, 'utf8');
+    uninstallHooks(p);
+    const backups = readdirSync(dir).filter((n) => n.startsWith('settings.json.kayy-backup-'));
+    expect(backups.length).toBeGreaterThanOrEqual(1);
+    expect(backups.map((n) => readFileSync(join(dir, n), 'utf8'))).toContain(before);
+  });
+  it('uninstall on invalid JSON throws and does not touch the file', () => {
+    const p = join(tmp(), 'settings.json');
+    writeFileSync(p, '{ broken');
+    expect(() => uninstallHooks(p)).toThrow(/settings\.json/);
+    expect(readFileSync(p, 'utf8')).toBe('{ broken');
+  });
+  it('keeps only the newest 5 backups per settings file', () => {
+    const dir = tmp();
+    const p = join(dir, 'settings.json');
+    writeFileSync(p, '{}');
+    for (let i = 1; i <= 7; i++) writeFileSync(`${p}.kayy-backup-${i}`, '{}');
+    writeFileSync(join(dir, 'other.json.kayy-backup-1'), '{}');
+    installHooks(p, HOOK);
+    const backups = readdirSync(dir).filter((n) => n.startsWith('settings.json.kayy-backup-'));
+    expect(backups).toHaveLength(5);
+    expect(backups).not.toContain('settings.json.kayy-backup-1');
+    expect(backups).not.toContain('settings.json.kayy-backup-3');
+    expect(backups).toContain('settings.json.kayy-backup-7');
+    expect(existsSync(join(dir, 'other.json.kayy-backup-1'))).toBe(true);
   });
 });

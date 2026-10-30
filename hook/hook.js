@@ -22,7 +22,8 @@ function toEvent(h) {
   const sub = typeof h.agent_id === 'string' && h.agent_id ? h.agent_id : null;
   let message = cut(h.message, 500);
   const resp = h.tool_response;
-  if (h.hook_event_name === 'PostToolUse' && resp && (resp.is_error === true || resp.error)) {
+  const failed = h.hook_event_name === 'PostToolUseFailure' || (h.hook_event_name === 'PostToolUse' && resp && (resp.is_error === true || resp.error));
+  if (failed) {
     message = 'ERROR: ' + (cut(h.tool_name, 100) || 'tool') + ' failed'; // never the tool output: it may hold secrets
   }
   return {
@@ -30,7 +31,7 @@ function toEvent(h) {
     sessionId: cut(h.session_id, 200),
     agentId: sub || cut(h.session_id, 200),
     ...(sub ? { parentId: cut(h.session_id, 200) } : {}),
-    event: h.hook_event_name,
+    event: h.hook_event_name === 'PostToolUseFailure' ? 'PostToolUse' : h.hook_event_name,
     agentType: cut(h.agent_type, 100),
     tool: cut(h.tool_name, 100),
     file: h.tool_input && typeof h.tool_input === 'object' ? cut(h.tool_input.file_path || h.tool_input.notebook_path, 200) : undefined,
@@ -77,7 +78,7 @@ function send(event, cfg) {
 }
 
 // --- blocking permission mode (PermissionRequest hook) -------------------
-const PERMISSION_WAIT_MS = 26000;
+const PERMISSION_WAIT_MS = 22000;
 
 function summarize(input) {
   if (!input || typeof input !== 'object') return '';
