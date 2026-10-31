@@ -43,6 +43,9 @@ if (process.env.KAYY_GFX === 'sw') {
   app.commandLine.appendSwitch('in-process-gpu');
 }
 
+// Linux: transparent windows need an ARGB visual (Electron docs, frameless window).
+if (process.platform === 'linux') app.commandLine.appendSwitch('enable-transparent-visuals');
+
 async function main(): Promise<void> {
   if (!app.requestSingleInstanceLock()) { app.quit(); return; }
   await app.whenReady();
