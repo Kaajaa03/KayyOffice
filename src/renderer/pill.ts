@@ -1,5 +1,6 @@
 // Pure name-pill text (Lumio style: name + status dot, second line = what the agent is doing).
 import { t } from '../shared/i18n';
+import { benchName } from './bench';
 import type { Key, Lang } from '../shared/i18n';
 import type { Agent, AgentStatus } from '../shared/types';
 
@@ -25,7 +26,7 @@ const projectName = (a: Agent): string => a.cwd.split(/[\\/]/).filter(Boolean).p
 
 export function labelFor(a: Agent, lang: Lang): string {
   if (a.role) return a.role;
-  if (a.parentId) return a.name ?? t(lang, 'label.subAgent');
+  if (a.parentId) return a.name ? benchName(a.name) : t(lang, 'label.subAgent');
   return t(lang, 'label.chat');
 }
 

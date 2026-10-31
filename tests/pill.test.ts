@@ -83,4 +83,7 @@ describe('subagent name pipeline', () => {
     const a = reduce(initialState(), e).agents.a1;
     expect(labelFor(a, 'de')).toBe('Explore');
   });
+  it('shows a kayy subagent without the prefix, like the waiting area', () => {
+    expect(labelFor(ag({ parentId: 'p', name: 'kayy-reviewer' }), 'de')).toBe('reviewer');
+  });
 });

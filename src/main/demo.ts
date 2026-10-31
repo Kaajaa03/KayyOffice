@@ -62,5 +62,7 @@ export function demoCountState(count: number, now = Date.now()): AppState {
   agents.agent1.context = { percent: 34 };
   agents.agent1.limit = { kind: 'five_hour', percent: 62 };
   if (agents.agent2) agents.agent2.name = 'kayy-coder';
+  const types = ['kayy-coder', 'kayy-architect']; // the two types the demo keeps off the bench
+  Object.values(agents).filter((a) => a.parentId && !a.name).forEach((a, i) => { a.name = types[i % types.length]; });
   return { agents, roster: DEMO_ROSTER };
 }
