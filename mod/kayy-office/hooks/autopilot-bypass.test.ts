@@ -203,6 +203,10 @@ test('I7: git only with allowlisted subcommands and flags', () => {
     'git commit -C HEAD',
     'git commit --amend -m x',
     'git commit',
+    'git commit -m "fix: typo"', // runs the repo's hooks: always waits for the person
+    'git commit -am "x"',
+    'git commit -a -m x',
+    'git commit -m x --allow-empty',
     'git add -A',
     'git add --all',
     'git add -f x.ts',
@@ -238,10 +242,6 @@ test('I7: git only with allowlisted subcommands and flags', () => {
     'git branch -a',
     'git branch --list',
     'git add src/a.ts',
-    'git commit -m "fix: typo"',
-    'git commit -am "x"',
-    'git commit -a -m x',
-    'git commit -m x --allow-empty',
     'git stash list',
     'git rev-parse HEAD',
     'git rev-parse --short HEAD',
@@ -268,8 +268,9 @@ test('minor: grep/rg/findstr/wc flags that read file lists or run programs are r
     'cd D:',
     'cd ##server#share',
     'cd ..',
+    'grep -rn TODO src', // a recursive walk from "." would read .env and .git
   ])
-  for (const ok of ['grep -rn TODO src', 'grep -i x a.txt', 'rg -n TODO', 'findstr /n TODO a.txt', 'wc -l a.txt', 'cd src']) {
+  for (const ok of ['grep -n TODO a.txt', 'grep -i x a.txt', 'rg -n TODO', 'findstr /n TODO a.txt', 'wc -l a.txt', 'cd src']) {
     expect(shellAllows(ok).length, ok).toBe(2)
   }
 })

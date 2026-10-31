@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { initialState, reduce, tick, pruneStale, nextDueMs, DONE_TO_IDLE_MS, SUBAGENT_LINGER_MS, STALE_MS } from '../src/main/state';
+import { initialState, reduce, tick, pruneStale, nextDueMs, DONE_TO_IDLE_MS, SUBAGENT_LINGER_MS, STALE_MS, IDLE_STALE_MS } from '../src/main/state';
 import type { AgentEvent, AppState } from '../src/shared/types';
 
 const ev = (o: Partial<AgentEvent>): AgentEvent => ({
@@ -40,6 +40,13 @@ describe('reduce', () => {
     const s = reduce(initialState(), ev({ event: 'PostToolUse', sessionId: 'x', agentId: 'x', ts: 1000 }));
     expect(Object.keys(s.agents)).toEqual(['x']);
     expect(Object.keys(pruneStale(s, 1000 + STALE_MS).agents)).toEqual([]);
+  });
+  it('pruneStale drops an unused (idle) chat after IDLE_STALE_MS, a working one stays', () => {
+    let s = reduce(initialState(), ev({ sessionId: 'i', agentId: 'i', event: 'Stop', ts: 0 }));
+    s = tick(s, DONE_TO_IDLE_MS);
+    s = reduce(s, ev({ sessionId: 'k', agentId: 'k', event: 'PreToolUse', ts: 0 }));
+    expect(Object.keys(pruneStale(s, IDLE_STALE_MS - 1).agents).sort()).toEqual(['i', 'k']);
+    expect(Object.keys(pruneStale(s, IDLE_STALE_MS).agents)).toEqual(['k']);
   });
   it('pruneStale keeps a waiting agent much longer than others', () => {
     let s = reduce(initialState(), ev({ sessionId: 'w', agentId: 'w', event: 'Notification', ts: 0 }));

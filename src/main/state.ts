@@ -4,11 +4,13 @@ import type { Agent, AgentEvent, AppState } from '../shared/types';
 export const DONE_TO_IDLE_MS = 15000;
 /** A finished subagent frees its desk this long after its last event. */
 export const SUBAGENT_LINGER_MS = 20000;
-/** A quiet agent is pruned after this long (a waiting one after 8x). */
+/** A quiet agent is pruned after this long (a waiting one after 8x, an idle one after IDLE_STALE_MS). */
 export const STALE_MS = 15 * 60 * 1000;
+/** An unused chat (idle) loses its character after this long. */
+export const IDLE_STALE_MS = 5 * 60 * 1000;
 
 const isSubagent = (a: Agent) => a.parentId !== undefined;
-const staleAfter = (a: Agent) => (a.status === 'waiting' ? STALE_MS * 8 : STALE_MS);
+const staleAfter = (a: Agent) => (a.status === 'waiting' ? STALE_MS * 8 : a.status === 'idle' ? IDLE_STALE_MS : STALE_MS);
 
 export function initialState(): AppState {
   return { agents: {} };

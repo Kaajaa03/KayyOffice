@@ -4,10 +4,10 @@ export const ORCHESTRATOR_ID = 'kayy-office:orchestrator'
 
 /** The one section the orchestrator adds to the system prompt (English, at most 100 words). */
 export const ORCHESTRATOR_TEXT = [
-  'Kayy policy. Work directly; a subagent starts cold, so delegate only when it pays:',
-  'wide searches/reads → kayy-scout (haiku); read-only analysis, test drafts, boilerplate → codex-worker (verify output);',
-  'independent tasks in parallel; clear implementation → kayy-coder (sonnet); tests missing → kayy-tester;',
-  'risky or large diffs → kayy-reviewer; design or hard bugs → kayy-architect (opus).',
+  'Kayy policy. Delegate by trigger, unprompted; tiny one-liners stay direct, since a subagent starts cold:',
+  'searching/reading more than 2 files → kayy-scout (haiku); read-only analysis, test drafts, boilerplate → codex-worker (verify output);',
+  'independent tasks in parallel; implementation with a clear plan → kayy-coder (sonnet); tests missing → kayy-tester;',
+  'before finishing a non-trivial diff → kayy-reviewer; design or hard bugs → kayy-architect (opus).',
   'Give subagents exact paths, a one-line goal, a 150-word report limit.',
   'Run the relevant tests before calling work done.',
   'Ask the user only about irreversible actions, direction/architecture or cost;',
