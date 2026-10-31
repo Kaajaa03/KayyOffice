@@ -1,110 +1,240 @@
-# Kayy Office
+<div align="center">
 
-Pixel-Büro für **Claude-Code-Agents** unter Windows. Jeder Agent sitzt in einem gemeinsamen Büro: Wer arbeitet, tippt am Schreibtisch, wer dich braucht, steht auf, wer fertig ist, holt sich Kaffee. Freigaben, Fortschritt, Modell und Kosten siehst du auf einen Blick, auch wenn Claude im Hintergrund läuft.
+<img src="docs/banner.svg" alt="Kayy Office – Pixel-Büro für Claude-Code-Agents" width="100%">
 
-**Lokal und tokenfrei:** kein LLM-Aufruf, kein Polling, keine Telemetrie, kein Hosting. Alles läuft über `127.0.0.1`.
+<br>
 
-![Büro mit mehreren Agents](docs/screenshots/office-progress.png)
+![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4?logo=windows&logoColor=white&style=for-the-badge)
+![Electron](https://img.shields.io/badge/Electron-45-47848F?logo=electron&logoColor=white&style=for-the-badge)
+![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white&style=for-the-badge)
+![Tests](https://img.shields.io/badge/Tests-393%20%2B%20146%20gr%C3%BCn-3fb950?style=for-the-badge)
 
-## Schnellstart
+![Tokens](https://img.shields.io/badge/Overlay-0%20Tokens-ffd43b?style=flat-square)
+![Lokal](https://img.shields.io/badge/Netzwerk-nur%20127.0.0.1-8957e5?style=flat-square)
+![Telemetrie](https://img.shields.io/badge/Telemetrie-keine-lightgrey?style=flat-square)
+![RAM](https://img.shields.io/badge/RAM-~80%20MB-orange?style=flat-square)
+![CPU](https://img.shields.io/badge/CPU%20Leerlauf-~0%2C01%20%25-blue?style=flat-square)
+
+**[🚀 Schnellstart](#-schnellstart) · [🔌 Claude-Mod](#-claude-mod-anschließen) · [🏢 Im Büro](#-im-büro) · [🚦 Freigaben](#-freigaben) · [🔒 Sicherheit](docs/SECURITY.md) · [🧱 Architektur](docs/ARCHITECTURE.md) · [📜 Changelog](CHANGELOG.md)**
+
+<br>
+
+<img src="docs/screenshots/office-day.png" alt="Das Büro bei Tag mit sechs Agents" width="880">
+
+</div>
+
+<br>
+
+Jeder Agent sitzt in einem gemeinsamen Büro: Wer arbeitet, **tippt am Schreibtisch**, wer dich braucht, **steht auf**, wer fertig ist, **holt sich Kaffee**. Freigaben, Fortschritt, Modell und Kosten siehst du auf einen Blick, auch wenn Claude im Hintergrund läuft.
+
+| 🪙 Tokenfrei | 🔐 Lokal & signiert | 🤖 Subagents im Blick | 🛡️ Riskantes wird gebremst |
+|:---:|:---:|:---:|:---:|
+| kein LLM-Aufruf, kein Polling | nur `127.0.0.1`, HMAC-Anfragen | Typ, Modell, Datei, Fortschritt | Karte bei `rm -rf`, Force-Push … |
+
+## 🚀 Schnellstart
+
 ```bash
 npm install
 npm start          # baut und startet die App (Tray-Icon unten rechts)
 ```
-Beim ersten Start öffnen sich die **Einstellungen** mit einer kurzen Einführung (Sprache, Installationsbefehl für den Mod, **Demo** 15 s). Das Büro erscheint oben mittig, sobald Agents arbeiten. **Strg+Alt+O** blendet es ein und aus; Doppelklick auf das Tray-Icon öffnet die **Einstellungen**. Die installierte App startet ab dem ersten Start mit Windows (abschaltbar unter Einstellungen → System). Installer: `npm run dist` erzeugt `release/Kayy Office Setup <Version>.exe` und eine Portable-Version.
 
-## Claude-Mod anschließen
-Der Claude-Mod `kayy-office` ist der einzige Weg: Status, Modell pro Agent, Kosten, Datei, **Fortschritt der Aufgabenliste**, Router, Freigaben, Pane in der Claude-App, Autopilot und Orchestrierungs-Richtlinie. Er gilt für jeden Chat, ohne weitere Einrichtung. Alte Hook-Einträge (`--kayy-office`) aus früheren Versionen entfernt die App beim Start selbst (mit Backup der `settings.json`).
+Beim ersten Start öffnen sich die **Einstellungen** mit kurzer Einführung (Sprache, Installationsbefehl für den Mod, **Demo** 15 s). Das Büro erscheint oben mittig, sobald Agents arbeiten.
 
-**Mod installieren (lokal):**
+| Taste / Aktion | Wirkung |
+|---|---|
+| **Strg + Alt + O** | Büro ein- und ausblenden |
+| Doppelklick aufs Tray-Icon | Einstellungen |
+| Titelleiste ziehen | Büro verschieben (Position wird gemerkt) |
+| **Strg + Mausrad** auf der Titelleiste | Größe: 67 / 100 / 133 / 167 / 200 % |
+
+Installer: `npm run dist` erzeugt `release/Kayy Office Setup <Version>.exe` und eine Portable-Version. Die installierte App startet ab dem ersten Start mit Windows (abschaltbar).
+
+## 🔌 Claude-Mod anschließen
+
+Der Mod `kayy-office` ist der **einzige Weg**: Status, Modell pro Agent, Kosten, Datei, Fortschritt der Aufgabenliste, Router, Freigaben, Pane in der Claude-App, Autopilot und Orchestrierungs-Richtlinie. Er gilt für jeden Chat ohne weitere Einrichtung.
+
+```mermaid
+flowchart LR
+    A["Claude Code<br/>(jeder Chat)"] -->|Mod kayy-office| B["signierte Events<br/>127.0.0.1"]
+    B --> C["Kayy Office<br/>Overlay"]
+    C -->|Erlauben / Ablehnen| B
+    B -->|Beweis je Entscheidung| A
+```
+
 ```bash
 claude plugin marketplace add C:\Users\<du>\IdeaProjects\KayyOffice
 claude plugin install kayy-office@kayy
 ```
-Danach in einer neuen Sitzung `/office` (Pane und Status). Entfernen: `claude plugin uninstall kayy-office@kayy`. Den alten Mod `kayy-router` nicht parallel laden, der neue enthält den Router. Ohne laufende App tut der Mod still nichts. Details: [mod/kayy-office/README.md](mod/kayy-office/README.md).
 
-## Im Büro
-- **Namensschild:** Status-Punkt, Name, Modell-Chip (**H**aiku, **S**onnet, **O**pus, **F**able), darunter die aktuelle Aufgabe oder Datei. Ein goldener Balken zeigt den **Fortschritt** der Aufgabenliste (`TodoWrite`).
-- **Zustände:** *arbeitet* (Bildschirm zeigt Code, Terminal oder Browser), *braucht dich* (steht auf, „!“), *Entscheidung* (Claude hat dir eine echte Frage gestellt), *fertig* (Kaffee, dann Lounge), *Fehler* (roter Bildschirm, ausgelöst durch `PostToolUseFailure`), *ruht*.
-- **Licht:** Tageszeit und Sonnenstand folgen der echten Zeit, nachts leuchten Lampen und Bildschirme. Fußzeile: Anzahl, aktiv, wartend, Session-Kosten, **Kontext** der Session (z. B. „Kontext 34 %“) und Konto-Limit („5h 21 %“); ab 70 % bernstein, ab 85 % rot.
-- **Wartebereich:** Die Agent-Typen, die der Claude-Mod meldet (Scout, Coder, Tester …), sitzen gedimmt auf Sofa und Sitzsäcken der Lounge, mit Kürzel und Modell-Chip. Sobald ein Typ arbeitet, wechselt er an einen Schreibtisch; mehr als sechs Wartende erscheinen als „+n“.
-- **Sprache:** Deutsch oder Englisch (Einstellungen → Darstellung), Standard nach System. **Reduzierte Bewegung** (Windows-Einstellung) wird respektiert.
-- **Verschieben:** Die Titelleiste des Büros („KAYY OFFICE“) mit der Maus ziehen, die Position wird gemerkt und bleibt auch nach einem Monitor-Wechsel erreichbar. Feste Plätze (oben/unten, links/Mitte/rechts) unter Einstellungen → Position.
-- **Größe und Transparenz:** fünf Stufen (67, 100, 133, 167, 200 %), jede ergibt ganze Bildschirmpixel pro Pixel-Kunst-Einheit, also scharfe Kanten. Auch mit **Strg + Mausrad** über der Titelleiste. Auf kleinen Bildschirmen wird die Stufe automatisch auf das begrenzt, was passt. Die Transparenz (50 bis 100 %) gilt für das ganze Fenster, **auch für die Freigabe-Karte**.
+Danach in einer neuen Sitzung `/office` (Pane und Status). Entfernen: `claude plugin uninstall kayy-office@kayy`. Ohne laufende App tut der Mod still nichts. Details: [mod/kayy-office/README.md](mod/kayy-office/README.md).
 
-## Freigaben
-Das Overlay zeigt eine Karte mit **Erlauben / Ablehnen**, wenn Claude etwas freigeben lassen will (Einstellungen → Freigaben):
+## 🏢 Im Büro
+
+<div align="center">
+<img src="docs/screenshots/office-night.png" alt="Das Büro bei Nacht" width="880">
+<br><sub>Nachts leuchten Lampen und Bildschirme. Tageszeit und Sonnenstand folgen der echten Zeit.</sub>
+</div>
+
+<br>
+
+| Zustand | Was du siehst |
+|---|---|
+| ⌨️ **arbeitet** | Bildschirm zeigt Code, Terminal oder Browser |
+| ❗ **braucht dich** | Figur steht auf, „!“ über dem Kopf |
+| 💬 **Entscheidung** | Claude hat dir eine echte Frage gestellt |
+| ☕ **fertig** | Kaffee, danach Lounge |
+| 🟥 **Fehler** | roter Bildschirm |
+| 💤 **ruht** | Chat unbenutzt, nach 5 Minuten verschwindet die Figur |
+
+- **Namensschild:** Status-Punkt, Name, Modell-Chip (**H**aiku, **S**onnet, **O**pus, **F**able), darunter Aufgabe oder Datei und ein goldener **Fortschrittsbalken** der Aufgabenliste.
+- **Wartebereich:** Die Agent-Typen, die der Mod meldet (Scout, Coder, Tester …), sitzen gedimmt in der Lounge und gehen an einen Schreibtisch, sobald sie arbeiten. Der Wartebereich überlebt einen Neustart.
+- **Fußzeile:** Anzahl, aktiv, wartend, Session-Kosten, **Kontext** (ab 70 % bernstein, ab 85 % rot) und Konto-Limit (`5h 21 %`).
+- **Größe und Transparenz:** fünf Stufen mit ganzen Bildschirmpixeln (scharfe Kanten), Transparenz 50 bis 100 % auch für die Freigabe-Karte. Zu große Stufen werden auf kleinen Bildschirmen begrenzt.
+- **Sprache:** Deutsch oder Englisch, Standard nach System. **Reduzierte Bewegung** (Windows) wird respektiert.
+
+## 🚦 Freigaben
+
+<div align="center">
+<img src="docs/screenshots/approval.png" alt="Freigabe-Karte bei einem riskanten Befehl" width="880">
+</div>
+
+<br>
 
 | Modus | Verhalten |
 |---|---|
-| **Nur bei riskanten Befehlen** (Standard) | Karte nur bei `rm -rf`, `Remove-Item -Recurse`, `git reset --hard`, `git push --force`, `git clean -f`, `curl … \| bash`, `DROP TABLE`, `format X:` und sensiblen Dateien. Rote Warnzeile mit Ziel, Erlauben erst nach 1,5 s klickbar |
+| **Nur bei riskanten Befehlen** (Standard) | Karte bei `rm -rf`, `Remove-Item -Recurse`, `git reset --hard`, `git push --force`, `git clean -f`, `curl … \| bash`, `DROP TABLE`, `format X:` und sensiblen Dateien. Rote Warnzeile mit Ziel, **Erlauben** erst nach 1,5 s klickbar |
 | Bei jeder Rückfrage | jede Anfrage |
 | Nie | immer Claudes normaler Dialog |
 
-Keine Antwort in 20 s, App aus oder Fehler ⇒ ganz normaler Claude-Dialog. `ExitPlanMode` und `AskUserQuestion` beantwortet das Overlay nie. Die Karte nennt Rolle/Projekt, Agent-Typ und bei Verwechslungsgefahr ein Session-Kürzel. Die Rückfragen **pro Datei** kommen von Claudes eigenem Berechtigungssystem und lassen sich nur dort ändern (Auto-accept edits oder eine `Edit(...)`-Regel in deinen Einstellungen).
+Keine Antwort in 20 s, App aus oder Fehler ⇒ ganz normaler Claude-Dialog, **nie** ein stilles „Erlauben“. `ExitPlanMode` beantwortet das Overlay nie; `AskUserQuestion` nur als Fragekarte mit einem Knopf je Option. Die Rückfragen **pro Datei** kommen von Claudes eigenem Berechtigungssystem und lassen sich nur dort ändern.
 
-## Orchestrator (im Mod)
-- **Autopilot** `/office autopilot on|off|status` (Standard **aus**): gibt nur Routine ohne Rückfrage frei, nämlich Lesen und Schreiben im Projektordner sowie eine enge Liste von Shell-Befehlen. Nie ein „Nein“ von Claude, nie Pläne, Fragen, MCP oder Web. Nur für eigene, vertrauenswürdige Projekte.
-- **Orchestrierungs-Richtlinie** `/office orchestrator on|off` (Standard **an**): ein kurzer System-Prompt-Abschnitt (rund 125 Tokens, im Cache). Er sagt Claude, **direkt zu arbeiten und nur dann zu delegieren, wenn es sich lohnt**, weil ein Subagent kalt startet: breite Suchen → `kayy-scout` (Haiku), unabhängige Aufgaben parallel, klare Umsetzung → `kayy-coder` (Sonnet), fehlende Tests → `kayy-tester`, riskante oder große Diffs vor dem Abschluss → `kayy-reviewer`, Design und schwere Bugs → `kayy-architect` (Opus). Dich fragt Claude nur bei Unumkehrbarem, Richtung oder Kosten.
-- **Subagent-Typen** liegen als Dateien in `~/.claude/agents/` (`kayy-scout`, `kayy-coder`, `kayy-tester`, `kayy-reviewer`, `kayy-architect`); sie stehen im Wartebereich des Büros, bis sie gebraucht werden.
-- **Entscheidungs-Signal:** stellt Claude eine echte Frage, steht der Agent auf und zeigt „Entscheidung“.
-- **Router** `/router status|on|off`: wählt für Subagents das passende Modell.
+## 🤖 Orchestrator (im Mod)
 
-## Rollen und Projekte
-`%APPDATA%\KayyOffice\roles.json` (beim ersten Start mit Beispielen angelegt, Einstellungen → Werkzeuge → „Rollen-Datei“; Änderungen gelten sofort nach dem Speichern):
-```json
-[{ "match": { "namePattern": "review" }, "role": "Reviewer", "color": "#ffa94d" }]
-```
-`namePattern` (Regex) trifft auf Agent-ID und Subagent-Typ, `cwdContains` auf den Arbeitsordner; der erste Treffer gewinnt, Farben nur als `#rrggbb`. Agents desselben Projekts sitzen zusammen.
+| Befehl | Wirkung |
+|---|---|
+| `/office` | Pane und Status in der Claude-App |
+| `/office autopilot on\|off` | Standard **aus**. Gibt nur Routine frei: Lesen/Schreiben im Projektordner und eine enge Shell-Liste. Nie ein „Nein“ von Claude, nie Pläne, Fragen, MCP oder Web. `git commit` wartet immer auf dich |
+| `/office orchestrator on\|off` | Standard **an**. Kurzer System-Prompt-Abschnitt (rund 125 Tokens, im Cache): Claude delegiert **von selbst nach festen Auslösern** |
+| `/router on\|off` | wählt für Subagents das passende Modell |
 
-## Dev-Log
-Events werden pro Tag als JSONL unter `%APPDATA%\KayyOffice\logs` gesammelt (ohne Nachrichtentext, ohne Aufgabentexte; Dateien älter als 30 Tage werden beim Start gelöscht). Einstellungen → Werkzeuge → „Dev-Log (heute)“ und „Wochen-Recap“ erzeugen Markdown mit Tool-Calls, aktiver Zeit, erledigten Aufgaben und Dateien. Zielordner per `devLogDir` in `config.json` (z. B. Obsidian-Vault); Dateinamen `kayy-devlog-<Datum>.md`, damit nie eine eigene Notiz überschrieben wird.
+**Delegations-Auslöser:** mehr als 2 Dateien suchen oder lesen → `kayy-scout` (Haiku) · Umsetzung nach Plan → `kayy-coder` (Sonnet) · fehlende Tests → `kayy-tester` · vor dem Abschluss größerer Diffs → `kayy-reviewer` · Design und schwere Bugs → `kayy-architect` (Opus). Einzeiler bleiben direkt. Gefragt wirst du nur bei Unumkehrbarem, Richtung oder Kosten.
 
-## Einstellungen
-Tray-Menü: Anzeigen/Verstecken, **Einstellungen…**, Demo zeigen, Beenden. Alles andere liegt im Einstellungsfenster (Tastatur-bedienbar, Esc schließt, nichts braucht einen Neustart, Änderungen wirken sofort):
+Die Subagent-Typen liegen als Dateien in `~/.claude/agents/`.
 
-![Einstellungsfenster](docs/screenshots/settings.png)
+## ⚙️ Einstellungen
+
+<table>
+<tr>
+<td width="38%" valign="top">
+
+<img src="docs/screenshots/settings.png" alt="Einstellungsfenster" width="100%">
+
+</td>
+<td valign="top">
+
+Tray-Menü: Anzeigen/Verstecken, **Einstellungen…**, Demo zeigen, Beenden. Alles andere liegt im Fenster, Änderungen wirken sofort, nichts braucht einen Neustart.
 
 | Bereich | Inhalt |
 |---|---|
-| **Darstellung** | Sprache, Größe (5 Stufen mit Anzeige, z. B. „133 %“), Transparenz-Regler |
-| **Position** | sechs Plätze als Raster; sonst Titelleiste ziehen |
-| **Freigaben** | riskant / alle / nie, mit je einem Satz Erklärung |
-| **Verbindung** | Claude-Mod verbunden ✓/— (Event in den letzten 5 Minuten), bei „—“ der Installationsbefehl, Port |
-| **System** | Mit Windows starten (nur installierte Version, beim ersten Start an), Wach bleiben |
+| **Darstellung** | Sprache, Größe, Transparenz |
+| **Position** | sechs Plätze im Raster |
+| **Freigaben** | riskant / alle / nie |
+| **Verbindung** | Mod verbunden ✓/—, Installationsbefehl, Port |
+| **System** | Mit Windows starten, Wach bleiben |
 | **Werkzeuge** | Demo, Dev-Log, Wochen-Recap, Rollen-Datei, Diagnose-Log |
 
-Gespeichert in `config.json` (`scale`, `position`/`placement`, `opacity`, `language`, `approvals`, `awake`).
+Gespeichert in `%APPDATA%\KayyOffice\config.json`.
 
-## Was spart Tokens, was nicht (ehrlich)
+</td>
+</tr>
+</table>
+
+## 📋 Rollen, Dev-Log, Ressourcen
+
+<details>
+<summary><b>Rollen und Projekte</b> (<code>roles.json</code>)</summary>
+
+<br>
+
+`%APPDATA%\KayyOffice\roles.json` wird beim ersten Start mit Beispielen angelegt (Einstellungen → Werkzeuge → „Rollen-Datei“). Änderungen gelten sofort nach dem Speichern.
+
+```json
+[{ "match": { "namePattern": "review" }, "role": "Reviewer", "color": "#ffa94d" }]
+```
+
+`namePattern` (Regex) trifft auf Agent-ID und Subagent-Typ, `cwdContains` auf den Arbeitsordner; der erste Treffer gewinnt, Farben nur als `#rrggbb`. Agents desselben Projekts sitzen zusammen.
+
+</details>
+
+<details>
+<summary><b>Dev-Log</b> (Tageszusammenfassung als Markdown)</summary>
+
+<br>
+
+Events werden pro Tag als JSONL unter `%APPDATA%\KayyOffice\logs` gesammelt, ohne Nachrichten- und Aufgabentexte; Dateien älter als 30 Tage löscht der Start. „Dev-Log (heute)“ und „Wochen-Recap“ erzeugen Markdown mit Tool-Calls, aktiver Zeit, erledigten Aufgaben und Dateien. Zielordner per `devLogDir` in `config.json` (z. B. Obsidian-Vault); Dateinamen `kayy-devlog-<Datum>.md`, damit nie eine eigene Notiz überschrieben wird.
+
+</details>
+
+<details>
+<summary><b>Was spart Tokens, was nicht (ehrlich)</b></summary>
+
+<br>
+
 | | Wirkung |
 |---|---|
 | Büro, Overlay, Tray, Dev-Log | **0 Tokens**, rein lokal |
-| **Router** (Subagents auf Haiku/Sonnet statt immer Opus) | **spart** merklich, sobald Subagents laufen |
-| **Kontext- und Limit-Anzeige** | verhindert teure Überlänge: Kontext ab 70 % ist Zeit für `/compact` oder eine neue Sitzung, denn jeder Turn liest den ganzen Kontext neu |
-| Orchestrierungs-Richtlinie | kostet ~125 Tokens je Turn (aus dem Cache, ein Bruchteil davon als Preis); spart nur, wenn dadurch **große Suchausgaben aus dem Haupt-Kontext bleiben**. Wer sie nicht will: `/office orchestrator off` |
-| Subagents allgemein | **kosten selbst**: jeder startet kalt und liest Dateien neu. Lohnen sich bei breiten Suchen und Parallelarbeit, nicht für Kleinkram |
+| **Router** (Subagents auf Haiku/Sonnet statt Opus) | **spart** merklich, sobald Subagents laufen |
+| **Kontext- und Limit-Anzeige** | verhindert teure Überlänge: ab 70 % ist Zeit für `/compact` oder eine neue Sitzung |
+| Orchestrierungs-Richtlinie | kostet ~125 Tokens je Turn (aus dem Cache); spart nur, wenn **große Suchausgaben aus dem Haupt-Kontext bleiben**. Abschalten: `/office orchestrator off` |
+| Subagents allgemein | **kosten selbst**: jeder startet kalt und liest Dateien neu |
 | Autopilot, Freigabe-Karten | sparen **deine Zeit**, keine Tokens |
 
-## Ressourcen (`npm run perf`)
+</details>
+
+<details>
+<summary><b>Ressourcen</b> (<code>npm run perf</code>)</summary>
+
+<br>
+
 | | CPU | RAM (privat, alle Prozesse) |
 |---|---|---|
 | Leerlauf | ~0,01–0,1 % | ~80 MB |
 | 5 Agents aktiv | ~1 % | ~100 MB |
 
-Möglich durch event-getriebenes Rendering (ohne Aktivität keine Animationsschleife, kein Dauer-Timer), einmal gezeichneten Raum im Cache und GPU-Rendering (Standard, damit das transparente Fenster sichtbar ist). `KAYY_GFX=sw` schaltet auf den sparsameren Software-Modus (RAM ~halb, Overlay kann auf manchen Systemen unsichtbar bleiben).
+Event-getriebenes Rendering (ohne Aktivität keine Animationsschleife, kein Dauer-Timer), einmal gezeichneter Raum im Cache, GPU-Rendering als Standard (nötig, damit das transparente Fenster sichtbar ist). `KAYY_GFX=sw` schaltet auf den Software-Modus (RAM ~halb, Overlay kann auf manchen Systemen unsichtbar bleiben).
 
-## Sicherheit und Diagnose
-Anfragen an die App sind signiert, der Token geht nie über den Draht; Details in [docs/SECURITY.md](docs/SECURITY.md). Aufbau und Protokoll: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Fehler der App landen als einzeilige Meldungen (ohne Tokens, Befehle, Tool-Ausgaben) in `%APPDATA%\KayyOffice\app.log` (Einstellungen → Werkzeuge → „Diagnose-Log“, max. 256 KB plus `app.log.1`).
+</details>
 
-## Entwicklung
+## 🔒 Sicherheit
+
+- Anfragen an die App sind **signiert** (HMAC über Nonce, Pfad und Body), der Token geht nie über den Draht; Antworten tragen einen Beweis für genau diese Entscheidung.
+- Server nur auf `127.0.0.1`, Host-Prüfung gegen DNS-Rebinding, Body-Limit, strikte Validierung.
+- Electron mit Sandbox, Context-Isolation, ohne Node-Zugriff, strenge CSP; kein Aufruf nach außen, keine Telemetrie.
+- Der Autopilot arbeitet mit Positivliste und wurde adversarial geprüft.
+
+Alles im Detail: [docs/SECURITY.md](docs/SECURITY.md) · Aufbau und Protokoll: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Fehler der App landen als einzeilige Meldungen (ohne Tokens, Befehle, Tool-Ausgaben) in `%APPDATA%\KayyOffice\app.log`.
+
+> **Hinweis:** Die Installer sind nicht signiert, SmartScreen warnt deshalb. Auf verwalteten Rechnern vorher die IT fragen oder aus dem Quellcode starten (`npm start`).
+
+## 🧑‍💻 Entwicklung
+
 ```bash
-npm run check        # Typecheck (strikt, inkl. ungenutzter Variablen) + alle Tests
+npm run check        # Typecheck (strikt) + alle Tests
 npm run mock -- team # Fake-Events (single | team | permission | error | cleanup)
 npm run perf         # Leerlauf-Abnahme (PASS/FAIL); "-- active" für Last
 npm run dist         # Installer + Portable nach release/
+claude plugin test mod/kayy-office   # Mod-Tests
 ```
-Debug-Flags: `--demo`, `--demo-count=<n>`, `--screenshot=<png>`, `--hour=<0-23>`, `--no-card`, `--settings`, `--scale=<0.67|1|1.33|1.67|2>`, `--lang=<de|en>`, `--config-dir=<Ordner>` (eigene Konfiguration für Testläufe), `--claude-dir=<Ordner>` (ersetzt `~/.claude`, für Testläufe). Scale und Sprache per Flag werden nicht gespeichert. Mod-Tests: `claude plugin test mod/kayy-office`. CI: GitHub Actions (`.github/workflows/ci.yml`).
 
-## Roadmap
+<details>
+<summary><b>Debug-Flags</b></summary>
+
+<br>
+
+`--demo`, `--demo-count=<n>`, `--screenshot=<png>`, `--hour=<0-23>`, `--no-card`, `--settings`, `--scale=<0.67|1|1.33|1.67|2>`, `--lang=<de|en>`, `--config-dir=<Ordner>` (eigene Konfiguration für Testläufe), `--claude-dir=<Ordner>` (ersetzt `~/.claude`). Scale und Sprache per Flag werden nicht gespeichert. CI: GitHub Actions (`.github/workflows/ci.yml`).
+
+</details>
+
+## 🗺️ Roadmap
+
 Weitere Tools (Codex, Cursor) als Adapter, Tauri-Portierung für noch weniger RAM. Bewusst nicht geplant: Chat-zu-Chat-Nachrichten (Endlos-Ping-Pong-Risiko), Telemetrie, Auto-Update.
