@@ -25,6 +25,8 @@ interface Config {
   opacity?: number;
   /** Keep the PC awake while agents work; absent = on. */
   awake?: boolean;
+  /** Beep when an agent starts needing the person; absent = off. */
+  sound?: boolean;
 }
 
 const DEFAULT_PORT = 47821;

@@ -7,7 +7,7 @@ function make(over: Partial<SettingsDeps> = {}) {
   const persisted: Array<Record<string, unknown>> = [];
   let autostart = false;
   const deps: SettingsDeps = {
-    initial: { language: 'de', scale: 1, opacity: 1, placement: 'top-center', approvals: 'risky', awake: true },
+    initial: { language: 'de', scale: 1, opacity: 1, placement: 'top-center', approvals: 'risky', awake: true, sound: false },
     version: '1.2.0',
     hotkey: 'Strg+Alt+O',
     autostartAvailable: true,
@@ -18,6 +18,7 @@ function make(over: Partial<SettingsDeps> = {}) {
     applyOpacity: (o) => log.push(`opacity:${o}`),
     applyPlacement: (p) => { log.push(`place:${p}`); return { x: 1, y: 2 }; },
     setAwake: (b) => log.push(`awake:${b}`),
+    setSound: (b) => log.push(`sound:${b}`),
     setApprovals: (m) => log.push(`approvals:${m}`),
     persist: (patch) => persisted.push(patch),
     modActive: () => false,
@@ -32,7 +33,7 @@ describe('SettingsModel.snapshot', () => {
   it('reports validated state and live status', () => {
     const { m } = make();
     expect(m.snapshot()).toEqual({
-      language: 'de', scale: 1, opacity: 1, placement: 'top-center', approvals: 'risky', awake: true,
+      language: 'de', scale: 1, opacity: 1, placement: 'top-center', approvals: 'risky', awake: true, sound: false,
       autostart: false, autostartAvailable: true, mod: false, port: 47821,
       version: '1.2.0', hotkey: 'Strg+Alt+O',
     });
@@ -90,6 +91,14 @@ describe('SettingsModel.set', () => {
     expect(log).toContain('awake:false');
     expect(m.snapshot().autostart).toBe(true);
     expect(persisted).toEqual([{ approvals: 'off' }, { awake: false }]);
+  });
+  it('sound validates its value, applies it and is saved', () => {
+    const { m, log, persisted } = make();
+    expect(m.set('sound', 1)).toEqual({ ok: false, error: 'invalid' });
+    expect(m.set('sound', true)).toEqual({ ok: true });
+    expect(log).toContain('sound:true');
+    expect(m.snapshot().sound).toBe(true);
+    expect(persisted).toEqual([{ sound: true }]);
   });
   it('autostart is refused when unavailable (unpackaged)', () => {
     const { m, log } = make({ autostartAvailable: false });

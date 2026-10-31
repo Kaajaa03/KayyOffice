@@ -1,5 +1,5 @@
 // Composition root: builds the modules and wires them together. No logic of its own.
-import { app, powerSaveBlocker } from 'electron';
+import { app, powerSaveBlocker, shell } from 'electron';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { createActions } from './actions';
@@ -19,6 +19,7 @@ import { Office } from './office';
 import { parseOpacity } from './opacity';
 import { parsePlacement, parsePosition } from './position';
 import { AwakeManager } from './power';
+import { AttentionSound } from './sound';
 import { applyRoles, openRoles } from './roles';
 import { parseScale } from './scale';
 import { modConnected, SettingsModel } from './settings';
@@ -72,7 +73,8 @@ async function main(): Promise<void> {
   const startDemo = (ms: number | null) => { showOverlay(win); office.startDemo(flags.demoCount, ms); };
 
   const tray = createTray({ toggle: () => toggleOverlay(win), openSettings: () => settings.open(lang), demo: () => startDemo(DEMO_MS) }, lang);
-  const office = new Office({ render, changed: (live) => { awake.update(live); tray.setStats(officeStats(Object.values(live.agents))); } });
+  const attention = new AttentionSound(() => shell.beep(), config.sound === true);
+  const office = new Office({ render, changed: (live) => { awake.update(live); attention.update(live); tray.setStats(officeStats(Object.values(live.agents))); } });
   const rosterFile = join(configDir, 'roster.json');
   const savedRoster = loadRoster(rosterFile);
   if (savedRoster) office.apply({ ts: Date.now(), sessionId: '', agentId: '', event: 'Roster', cwd: '', roster: savedRoster });
@@ -91,7 +93,7 @@ async function main(): Promise<void> {
   removeLegacyHooks(flags.claudeDir ?? join(homedir(), '.claude'), configDir);
 
   const model: SettingsModel = new SettingsModel({
-    initial: { language: lang, scale: zoom, opacity: parseOpacity(config.opacity), placement: parsePlacement(config.placement), approvals: approvalMode, awake: config.awake !== false },
+    initial: { language: lang, scale: zoom, opacity: parseOpacity(config.opacity), placement: parsePlacement(config.placement), approvals: approvalMode, awake: config.awake !== false, sound: config.sound === true },
     version: app.getVersion(),
     hotkey: HOTKEY_LABEL,
     autostartAvailable: app.isPackaged,
@@ -103,6 +105,7 @@ async function main(): Promise<void> {
     applyOpacity: (o) => win.setOpacity(o),
     applyPlacement: (p) => { placeOverlay(win, p); const [x, y] = win.getPosition(); return { x, y }; },
     setAwake: (on) => awake.setEnabled(on),
+    setSound: (on) => attention.setEnabled(on),
     setApprovals: (mode) => { approvalMode = mode; },
     persist: (patch) => updateConfig(configDir, patch),
     modActive: () => modConnected(lastEventAt, Date.now()),

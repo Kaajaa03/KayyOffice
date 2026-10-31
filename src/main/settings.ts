@@ -17,6 +17,7 @@ export interface SettingsSnapshot {
   placement: Placement | undefined;
   approvals: ApprovalMode;
   awake: boolean;
+  sound: boolean;
   autostart: boolean;
   autostartAvailable: boolean;
   mod: boolean;
@@ -32,7 +33,7 @@ export type SetResult = { ok: true } | { ok: false; error: SetError };
 export interface ActionResult { ok: boolean; text: string }
 
 export interface SettingsDeps {
-  initial: Pick<SettingsSnapshot, 'language' | 'scale' | 'opacity' | 'placement' | 'approvals' | 'awake'>;
+  initial: Pick<SettingsSnapshot, 'language' | 'scale' | 'opacity' | 'placement' | 'approvals' | 'awake' | 'sound'>;
   version: string;
   hotkey: string;
   autostartAvailable: boolean;
@@ -45,6 +46,7 @@ export interface SettingsDeps {
   /** Moves the overlay to the preset and returns its new top-left position. */
   applyPlacement(p: Placement): Point;
   setAwake(on: boolean): void;
+  setSound(on: boolean): void;
   setApprovals(mode: ApprovalMode): void;
   persist(patch: Record<string, unknown>): void;
   modActive(): boolean;
@@ -58,7 +60,7 @@ const MOD_FRESH_MS = 5 * 60_000;
 /** The Claude mod counts as connected while it reported an event within the last 5 minutes. */
 export const modConnected = (lastEventAt: number, now: number): boolean => lastEventAt > 0 && now - lastEventAt <= MOD_FRESH_MS;
 
-const KEYS = ['language', 'scale', 'opacity', 'placement', 'approvals', 'awake', 'autostart'] as const;
+const KEYS = ['language', 'scale', 'opacity', 'placement', 'approvals', 'awake', 'sound', 'autostart'] as const;
 type Key = (typeof KEYS)[number];
 const isKey = (k: unknown): k is Key => typeof k === 'string' && (KEYS as readonly string[]).includes(k);
 
@@ -142,6 +144,12 @@ export class SettingsModel {
         this.deps.setAwake(value);
         this.v.awake = value;
         return { awake: value };
+      }
+      case 'sound': {
+        if (typeof value !== 'boolean') return 'invalid';
+        this.deps.setSound(value);
+        this.v.sound = value;
+        return { sound: value };
       }
       case 'autostart': {
         if (typeof value !== 'boolean') return 'invalid';

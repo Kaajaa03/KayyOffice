@@ -65,6 +65,7 @@ function render(): void {
   el<HTMLInputElement>('autostart').disabled = !snap.autostartAvailable;
   el('autostart-note').textContent = snap.autostartAvailable ? '' : t(lang, 'set.autostart.unavailable');
   el<HTMLInputElement>('awake').checked = snap.awake;
+  el<HTMLInputElement>('sound').checked = snap.sound;
   el('f-version').textContent = t(lang, 'set.version', { version: snap.version });
   el('f-hotkey').textContent = t(lang, 'set.hotkey', { hotkey: lang === 'de' ? snap.hotkey.replace('Ctrl', 'Strg') : snap.hotkey });
 }
@@ -112,7 +113,7 @@ range.addEventListener('input', () => {
   void pumpOpacity();
 });
 
-for (const id of ['autostart', 'awake']) {
+for (const id of ['autostart', 'awake', 'sound']) {
   const box = el<HTMLInputElement>(id);
   box.addEventListener('change', () => void change(id, box.checked));
 }
