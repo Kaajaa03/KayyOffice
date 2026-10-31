@@ -47,7 +47,7 @@ npm run setup      # installiert, baut, richtet den Claude-Mod ein und startet d
 
 Danach eine **neue** Claude-Sitzung öffnen und `/office` tippen. Entfernen: `claude plugin uninstall kayy-office@kayy`.
 
-> **Plattformen:** Windows 10/11 ist getestet. macOS und Linux sollten laufen (Electron, Mod und Skript sind plattformneutral), sind aber **ungetestet**; das fertige Installer-Paket (`npm run dist`) gibt es nur für Windows.
+> **Plattformen:** Windows 10/11 ist der Hauptweg. Auf **macOS und Linux** läuft bei jedem Push in GitHub Actions automatisch: Typecheck, alle Tests, Build, Mod-Tests, das Setup-Skript und ein Start der App mit Demo-Screenshot. **Nicht automatisch geprüft** (braucht einen echten Desktop): transparentes Klick-durch-Fenster, Tray-Icon, Autostart und der Hotkey. Unter Linux braucht das transparente Fenster einen Compositor und das Tray-Icon unter GNOME die AppIndicator-Erweiterung. Ein fertiges Installer-Paket (`npm run dist`) gibt es nur für Windows.
 
 Nur die App ohne Setup-Skript: `npm install && npm start`.
 
