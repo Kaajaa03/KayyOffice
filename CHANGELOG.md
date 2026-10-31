@@ -6,6 +6,8 @@
 - **Orchestrierungs-Richtlinie** delegiert nach festen Auslösern statt „wenn es sich lohnt“.
 - Autopilot: `git commit` und `grep -r` warten immer auf die Person.
 - README neu gestaltet (Banner, Screenshots, Diagramm).
+- Neu, optional (Standard aus): **Signalton**, wenn ein Agent auf dich wartet (Einstellungen → System).
+- Subagent-Schilder zeigen den Typ (`reviewer`, `coder` …); `npm run setup` und CI für Windows, Linux und macOS.
 
 ## 1.3.0 – 2026-10-31
 Nur noch der Claude-Mod.

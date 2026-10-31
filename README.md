@@ -155,7 +155,7 @@ Tray-Menü: Anzeigen/Verstecken, **Einstellungen…**, Demo zeigen, Beenden. All
 | **Position** | sechs Plätze im Raster |
 | **Freigaben** | riskant / alle / nie |
 | **Verbindung** | Mod verbunden ✓/—, Installationsbefehl, Port |
-| **System** | Mit Windows starten, Wach bleiben |
+| **System** | Mit Windows starten, Wach bleiben, Signalton wenn ein Agent dich braucht (Standard aus) |
 | **Werkzeuge** | Demo, Dev-Log, Wochen-Recap, Rollen-Datei, Diagnose-Log |
 
 Gespeichert in `%APPDATA%\KayyOffice\config.json`.
