@@ -37,7 +37,8 @@ jobs:
         run: |
           mkdir -p smoke
           if [ "$RUNNER_OS" = "Linux" ]; then
-            xvfb-run -a npx electron . --no-sandbox --user-data-dir="$PWD/smoke/ud" --config-dir="$PWD/smoke/cfg" --claude-dir="$PWD/smoke/claude" --demo-count=6 --no-card --screenshot="$PWD/smoke/office.png"
+            # a headless runner has no GPU: software rendering
+            KAYY_GFX=sw xvfb-run -a npx electron . --no-sandbox --user-data-dir="$PWD/smoke/ud" --config-dir="$PWD/smoke/cfg" --claude-dir="$PWD/smoke/claude" --demo-count=6 --no-card --screenshot="$PWD/smoke/office.png"
           else
             npx electron . --user-data-dir="$PWD/smoke/ud" --config-dir="$PWD/smoke/cfg" --claude-dir="$PWD/smoke/claude" --demo-count=6 --no-card --screenshot="$PWD/smoke/office.png"
           fi
