@@ -33,10 +33,23 @@ Jeder Agent sitzt in einem gemeinsamen Büro: Wer arbeitet, **tippt am Schreibti
 
 ## 🚀 Schnellstart
 
+**Am einfachsten: gib das Repo deinem Claude.** Voraussetzung: [Node.js 20+](https://nodejs.org) und Claude Code. Dann diesen Satz in eine Claude-Sitzung einfügen:
+
+> Richte https://github.com/Kaajaa03/KayyOffice für mich ein: klone das Repo und führe darin `node scripts/setup.mjs` aus. Sag mir danach, was ich noch tun muss.
+
+Oder selbst, auf **Windows, macOS und Linux** gleich:
+
 ```bash
-npm install
-npm start          # baut und startet die App (Tray-Icon unten rechts)
+git clone https://github.com/Kaajaa03/KayyOffice.git
+cd KayyOffice
+npm run setup      # installiert, baut, richtet den Claude-Mod ein und startet die App
 ```
+
+Danach eine **neue** Claude-Sitzung öffnen und `/office` tippen. Entfernen: `claude plugin uninstall kayy-office@kayy`.
+
+> **Plattformen:** Windows 10/11 ist getestet. macOS und Linux sollten laufen (Electron, Mod und Skript sind plattformneutral), sind aber **ungetestet**; das fertige Installer-Paket (`npm run dist`) gibt es nur für Windows.
+
+Nur die App ohne Setup-Skript: `npm install && npm start`.
 
 Beim ersten Start öffnen sich die **Einstellungen** mit kurzer Einführung (Sprache, Installationsbefehl für den Mod, **Demo** 15 s). Das Büro erscheint oben mittig, sobald Agents arbeiten.
 
@@ -61,8 +74,10 @@ flowchart LR
     B -->|Beweis je Entscheidung| A
 ```
 
+`npm run setup` erledigt das schon. Von Hand:
+
 ```bash
-claude plugin marketplace add C:\Users\<du>\IdeaProjects\KayyOffice
+claude plugin marketplace add <Pfad-zum-Repo>
 claude plugin install kayy-office@kayy
 ```
 

@@ -12,7 +12,8 @@
     "mock": "tsx tools/mock-events.ts",
     "icon": "tsx tools/make-icon.ts",
     "perf": "tsx tools/perf-check.ts",
-    "dist": "npm run build && electron-builder"
+    "dist": "npm run build && electron-builder",
+    "setup": "node scripts/setup.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",

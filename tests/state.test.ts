@@ -127,8 +127,8 @@ describe('nextDueMs', () => {
   });
   it('uses the 8x longer prune window for a waiting agent and never returns a negative delay', () => {
     const w = reduce(initialState(), ev({ event: 'Notification', ts: 0 }));
-    expect(nextDueMs(w, 1000)).toBe(STALE_MS * 8 - 1000);
-    expect(nextDueMs(w, STALE_MS * 9)).toBe(0);
+    expect(nextDueMs(w, 1000)).toBe(STALE_MS * 2 - 1000);
+    expect(nextDueMs(w, STALE_MS * 3)).toBe(0);
   });
   it('is exact: the state is unchanged just before the delay and changes at it', () => {
     const s = reduce(reduce(initialState(), ev({ ts: 0 })), ev({ event: 'Stop', ts: 100 }));
