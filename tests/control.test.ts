@@ -47,3 +47,30 @@ describe('PermissionQueue', () => {
     expect(onChange).toHaveBeenCalledTimes(2);
   });
 });
+
+describe('PermissionQueue question cards', () => {
+  const question = { id: 'q', agentId: 'a', tool: 'AskUserQuestion', summary: 'Which?', options: ['A', 'B'] };
+  it('choose() resolves with the clicked index', async () => {
+    const q = new PermissionQueue();
+    const p = q.add(question);
+    expect(q.choose('q', 1)).toBe(true);
+    await expect(p).resolves.toEqual({ choice: 1 });
+  });
+  it('a question is never allowed or denied, and an index out of range is refused', async () => {
+    const q = new PermissionQueue();
+    const p = q.add(question);
+    expect(q.resolve('q', 'allow')).toBe(false);
+    expect(q.choose('q', 2)).toBe(false);
+    expect(q.choose('q', -1)).toBe(false);
+    expect(q.choose('q', 0.5)).toBe(false);
+    expect(q.pending()).toHaveLength(1);
+    q.dispose();
+    await expect(p).resolves.toBe('ask');
+  });
+  it('choose() on a plain allow/deny card is refused', () => {
+    const q = new PermissionQueue();
+    void q.add(req('1'));
+    expect(q.choose('1', 0)).toBe(false);
+    q.dispose();
+  });
+});

@@ -3,7 +3,7 @@
 import type { Agent, AppState, PermissionRequestInfo } from '../shared/types';
 import { t } from '../shared/i18n';
 import type { Lang } from '../shared/i18n';
-import { agentDrawables, benchDrawables } from './agents';
+import { agentDrawables, benchDrawables, freeBenchSpots } from './agents';
 import type { BenchTag, Drawable } from './agents';
 import { benchPlan } from './bench';
 import { CARD_H, CARD_W, armDelay, drawPermissionCard } from './card';
@@ -22,7 +22,7 @@ import type { OfficeStats } from './scene';
 import { drawWallLive } from './screens';
 import { dayPhase } from './sun';
 import type { DayPhase } from './sun';
-import { BENCH_TAG_H, FOOTER_FONT, HEADER_FONT, PILL_H, drawBenchTag, drawHint, drawPill, drawText, drawTextRuns, pillWidth } from './text';
+import { BENCH_TAG_H, FOOTER_FONT, HEADER_FONT, PILL_H, drawBenchTag, drawHint, drawPill, drawText, drawTextRuns, fit, measure, pillWidth } from './text';
 
 interface KayyApi {
   onHint(cb: (text: string | null) => void): void;
@@ -32,6 +32,7 @@ interface KayyApi {
   onPermissions(cb: (p: PermissionRequestInfo[]) => void): void;
   setInteractive(v: boolean): void;
   decide(id: string, decision: 'allow' | 'deny'): void;
+  choose(id: string, index: number): void;
   dragStart(): void;
   dragMove(): void;
   dragEnd(): void;
@@ -102,10 +103,17 @@ const footerRuns = (agents: Agent[]) => footerParts(agents, lang).map((p) => ({ 
 /** Title strip and footer text, in room coordinates (origin = room's left edge, window top). */
 function drawChrome(room: Room, agents: Agent[], st: OfficeStats, overflow: number, dpr: number): void {
   const roomW = room.w * P;
-  const head = t(lang, 'room.stats', { working: st.working, waiting: st.waiting }) + (overflow ? `  ·  ${t(lang, 'room.overflow', { n: overflow })}` : '');
+  const raw = t(lang, 'room.stats', { working: st.working, waiting: st.waiting }) + (overflow ? `  ·  ${t(lang, 'room.overflow', { n: overflow })}` : '');
+  // right-hand stats get the room width left over after the title, so they never overprint it
+  const head = fit(raw, HEADER_FONT, roomW - 52 - measure('KAYY OFFICE', HEADER_FONT), 1);
   drawText(ctx, 'KAYY OFFICE', 42, 13, HEADER_FONT, '#9aa3b5', 'left', dpr);
   drawText(ctx, head, roomW - 10, 13, HEADER_FONT, st.waiting ? '#ffc078' : '#dee2e6', 'right', dpr);
-  drawTextRuns(ctx, footerRuns(agents), roomW / 2, HEADER_H + room.h * P + 14, FOOTER_FONT, 'rgba(229,231,235,0.5)', dpr);
+  // drop the last parts when the footer would run past the room edge (narrow rooms)
+  const SEP = '  ·  ';
+  const widthOf = (rs: Array<{ text: string }>) => rs.reduce((n, r) => n + measure(r.text, FOOTER_FONT), 0) + measure(SEP, FOOTER_FONT) * (rs.length - 1);
+  let runs = footerRuns(agents);
+  while (runs.length > 1 && widthOf(runs) > roomW - 16) runs = runs.slice(0, -1);
+  drawTextRuns(ctx, runs, roomW / 2, HEADER_H + room.h * P + 14, FOOTER_FONT, 'rgba(229,231,235,0.5)', dpr);
 }
 
 /** Name pills and bench tags, nudged apart so crowded spots stay readable. */
@@ -133,13 +141,17 @@ function drawOffice(now: number, agents: Agent[], w: number, dpr: number): numbe
   header = { x: ox, w: room.w * P };
   ctx.drawImage(staticCanvas, Math.round(ox * dpr), 0);
 
-  ctx.setTransform(dpr, 0, 0, dpr, ox * dpr, 0);
+  // whole device pixels: both layers must stay aligned at fractional dpr
+  const ox_dev = Math.round(ox * dpr), header_dev = Math.round(HEADER_H * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, ox_dev, 0);
   const st = officeStats(agents);
   drawChrome(room, agents, st, overflow, dpr);
 
-  ctx.setTransform(dpr, 0, 0, dpr, ox * dpr, HEADER_H * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, ox_dev, header_dev);
   drawWallLive(ctx, room, clockDate(), st, lang, dpr);
-  const bench = benchDrawables(ctx, room, benchPlan(state.roster, agents), ph, dpr);
+  // idle and finished agents sit on the lounge spots first; roster figures get what is left
+  const spots = freeBenchSpots(room, agents.filter((a) => a.status === 'idle' || a.status === 'done').length);
+  const bench = benchDrawables(ctx, room, benchPlan(state.roster, agents, spots.length), spots, ph, dpr);
   const items = [...agentDrawables(ctx, room, seated, animTime(now, reduced), ph, dpr, reduced), ...bench.items].sort((a, b) => a.z - b.z);
   for (const d of items) d.draw();
   drawLabels(items, bench.tags, room, dpr);
@@ -211,7 +223,7 @@ window.addEventListener('mousemove', (e) => {
   const want = h !== null || grab;
   if (sync.want(want)) kayy.setInteractive(want);
   canvas.style.cursor = grab ? 'move' : h ? 'pointer' : 'default';
-  if (h?.id !== hover?.id || h?.decision !== hover?.decision) { hover = h; draw(performance.now()); }
+  if (h?.id !== hover?.id || h?.decision !== hover?.decision || h?.choice !== hover?.choice) { hover = h; draw(performance.now()); }
 });
 window.addEventListener('mousedown', (e) => {
   const h = hitAt(e.clientX, e.clientY);
@@ -221,7 +233,8 @@ window.addEventListener('mousedown', (e) => {
 window.addEventListener('mouseup', (e) => {
   if (drag) { endDrag(); return; }
   const h = guard.up(hitAt(e.clientX, e.clientY), performance.now());
-  if (h) kayy.decide(h.id, h.decision);
+  if (h?.decision === 'choice' && h.choice !== undefined) kayy.choose(h.id, h.choice);
+  else if (h && h.decision !== 'choice') kayy.decide(h.id, h.decision);
 });
 
 // Ctrl + wheel over the title strip: one size step per notch (throttled, each step resizes the window)

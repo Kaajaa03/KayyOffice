@@ -15,14 +15,18 @@ const CATEGORY: Record<string, Key> = {
   code: 'pill.code', terminal: 'pill.terminal', browser: 'pill.browser', other: 'pill.thinking',
 };
 
-const trunc = (s: string, n: number): string => (s.length > n ? s.slice(0, n - 1) + '…' : s);
+// counts code points, so an emoji (surrogate pair) is never split in half
+const trunc = (s: string, n: number): string => {
+  const cps = Array.from(s);
+  return cps.length > n ? cps.slice(0, n - 1).join('') + '…' : s;
+};
 
 const projectName = (a: Agent): string => a.cwd.split(/[\\/]/).filter(Boolean).pop() ?? a.id.slice(0, 6);
 
 export function labelFor(a: Agent, lang: Lang): string {
   if (a.role) return a.role;
-  if (a.parentId) return t(lang, 'label.subAgent');
-  return projectName(a);
+  if (a.parentId) return a.name ?? t(lang, 'label.subAgent');
+  return t(lang, 'label.chat');
 }
 
 interface PillLines {

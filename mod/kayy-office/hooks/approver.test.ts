@@ -1,5 +1,5 @@
 import { expect, test } from 'claude-code/testing'
-import { ASK_TIMEOUT_MS, PANE_ONLY_MS, approve, shouldForward, type ApproverIo, type CheckEvent, type Verdict } from './approver'
+import { ASK_TIMEOUT_MS, NEVER_FORWARD, PANE_ONLY_MS, approve, shouldForward, type ApproverIo, type CheckEvent, type Verdict } from './approver'
 import type { Decision } from './overlay'
 
 // The approver's core is pure over its IO: a fake overlay, pane and clock stand in for `$`.
@@ -78,7 +78,11 @@ test('only a real call put to a person is forwarded', () => {
   expect(shouldForward({ ...CALL, approver: 'host' }, ASK)).toBe(false) // SDK / desktop host callback
   expect(shouldForward({ ...CALL, approver: undefined }, ASK)).toBe(false) // nobody can be asked (headless)
   expect(shouldForward({ ...CALL, tool: 'ExitPlanMode' }, ASK)).toBe(false)
-  expect(shouldForward({ ...CALL, tool: 'AskUserQuestion' }, ASK)).toBe(false)
+  expect(shouldForward({ ...CALL, tool: 'AskUserQuestion' }, ASK)).toBe(false) // a question is no allow/deny card
+})
+
+test('only ExitPlanMode is never forwarded; AskUserQuestion has its own card path', () => {
+  expect([...NEVER_FORWARD]).toEqual(['ExitPlanMode'])
 })
 
 test('a query, a host approver or ExitPlanMode never reaches the overlay', async () => {

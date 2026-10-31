@@ -12,8 +12,9 @@ Claude Code mod for the Kayy Office overlay (Electron pixel office). Zero LLM ca
 
 - **Overlay feed**: session, tool, turn and subagent hooks go to `POST /event` with model, cost, context/limit, file and TodoWrite progress. A failed tool is only `ERROR: <tool> failed`, never its output. Config: `%APPDATA%\KayyOffice\config.json` (`{ token, port }`, or `$KAYY_CONFIG_DIR/config.json`). Fire-and-forget; after a failure it stays silent for 30 s. The overlay shows "Claude mod connected" while an event arrived within the last 5 minutes.
 - **Auth**: the token is never sent. Requests carry `x-kayy-nonce` and `x-kayy-auth` = HMAC-SHA256(token, `req|nonce|path|body`). A `/permission` reply counts only with a valid `x-kayy-proof` for exactly that decision; otherwise it is `ask`.
-- **Approver**: a real call whose core decision is `ask` for a person (never ExitPlanMode/AskUserQuestion) can be answered from the overlay or the pane; 20 s, then the normal dialog. A core allow/deny is never changed.
-- **Decision signal**: `AskUserQuestion` / `ExitPlanMode` send `Entscheidung: <question>`; the pane shows "Entscheidung offen". Only you answer these.
+- **Approver**: a real call whose core decision is `ask` for a person (never ExitPlanMode; AskUserQuestion has its own card) can be answered from the overlay or the pane; 20 s, then the normal dialog. A core allow/deny is never changed.
+- **Questions**: a single-select `AskUserQuestion` (1-4 questions, 2-4 options each) becomes one overlay card per question with a button per option; your click is returned as the tool's answer (`questions` + `answers`). Multi select, text/number questions, 20 s without a click or the app off: Claude's normal dialog. Never a default answer.
+- **Decision signal**: `AskUserQuestion` / `ExitPlanMode` send `Entscheidung: <question>`; the pane shows "Entscheidung offen". `ExitPlanMode` is only ever answered by you in Claude's dialog.
 - **Router**: routes subagents to haiku/sonnet/opus by type (`rules.json`, edit to change), status line.
 - **Orchestrator**: one short policy section in the system prompt: delegate only when it pays, ask only about irreversible actions, direction or cost.
 - **Pane**: agents with model and progress (`3/7 · <task>`), cost, `Kontext 34 % · 5h 21 %`, router counts, autopilot counters, open decision, approvals (Erlauben/Ablehnen/Dialog).

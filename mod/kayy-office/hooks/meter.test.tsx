@@ -170,7 +170,7 @@ test('dedupe, built-in ignored, unchanged set sends nothing; sorted with model o
   const all = rosters(events)
   expect(all).toHaveLength(3)
   expect(all.at(-1).roster).toEqual([
-    { type: 'codex-worker' },
+    { type: 'codex-worker', model: 'haiku' },
     { type: 'kayy-architect', model: 'opus' },
     { type: 'kayy-scout', model: 'haiku' },
   ])

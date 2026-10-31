@@ -117,6 +117,13 @@ test('edits of sensitive files are refused', () => {
   }
 })
 
+test('test files and test folders are never written automatically (npm test runs them)', () => {
+  for (const p of ['C:\\proj\\src\\a.test.ts', 'C:\\proj\\src\\a.spec.js', 'C:\\proj\\tests\\a.ts', 'C:\\proj\\__tests__\\x']) {
+    expect(edit(p), p).toBe(false)
+  }
+  expect(edit('C:\\proj\\src\\a.ts')).toBe(true)
+})
+
 test('edits outside the project are refused', () => {
   for (const p of ['C:\\Users\\k\\a.ts', 'C:\\proj\\..\\other\\a.ts', '..\\a.ts', 'C:\\projects\\a.ts']) expect(edit(p), p).toBe(false)
 })
@@ -132,7 +139,6 @@ test('allowlisted shell commands with no risk are routine', () => {
     'git branch',
     'git branch --show-current',
     'git add src/a.ts',
-    'git commit -m "fix typo"',
     'git stash list',
     'git rev-parse HEAD',
     'ls -la',
@@ -141,7 +147,7 @@ test('allowlisted shell commands with no risk are routine', () => {
     'echo hi',
     'head -5 a.txt',
     'wc -l a.txt',
-    'grep -rn TODO src',
+    'grep -n TODO src/a.ts',
     'rg TODO',
     'npm test',
     'npm run build',
@@ -190,9 +196,14 @@ test('shell arguments that leave the project or name secrets are refused', () =>
     'cat /etc/passwd',
     'cat .env',
     'grep -r token .env.local',
+    'grep -rn token .',
+    'grep -R token src',
+    'rg "--pre=sh" x .',
+    'grep "-f" file',
     'cd .. && ls',
     'ls D:\\',
     'git diff -- ../other',
+    'git commit -m "fix typo"', // runs the repo's hooks: always asks
   ]) {
     expect(bash(c), c).toBe(false)
   }

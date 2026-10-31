@@ -33,7 +33,8 @@ const NEVER = new Set([...NEVER_FORWARD, 'WebFetch', 'WebSearch'])
 /** Folders never touched automatically, at any depth (read or write, path or shell token). */
 const PROTECTED_DIRS = new Set(['.git', '.claude', '.vscode', '.ssh', '.aws', '.azure', '.kube', '.docker', '.gnupg', '.config'])
 /** Folders never written automatically (code that runs on install, commit or CI). */
-const NO_WRITE_DIRS = new Set(['.husky', 'node_modules', '.github', '.claude-plugin', '.idea', '.devcontainer'])
+// test folders: `npm test` runs whatever is written there, so a routine Write must not reach them
+const NO_WRITE_DIRS = new Set(['.husky', 'node_modules', '.github', '.claude-plugin', '.idea', '.devcontainer', 'tests', 'test', '__tests__'])
 
 /** Secret files: never read or written automatically (by name, case-insensitive). */
 export const isSecretName = (name: string): boolean => {
@@ -58,6 +59,7 @@ const isNoWriteName = (name: string): boolean => {
     /^(package\.json|package-lock\.json|npm-shrinkwrap\.json|pnpm-lock\.yaml|yarn\.lock|\.npmrc|\.yarnrc(\.yml)?|\.mcp\.json|\.gitattributes|\.gitmodules|claude\.md|claude\.local\.md|agents\.md|electron-builder\.ya?ml|makefile)$/.test(n) ||
     /^tsconfig.*\.json$/.test(n) ||
     /\.config\.[a-z0-9]+$/.test(n) || // vitest.config.ts, vite.config.mjs, eslint.config.js, ...
+    /\.(test|spec)\.[a-z0-9]+$/.test(n) || // run by `npm test` the moment they are written
     /^\.[a-z0-9-]+rc(\.[a-z0-9]+)?$/.test(n) || // .eslintrc, .babelrc.js, .prettierrc.json
     // scripts the OS or a shell runs directly; ordinary .js/.ts sources stay writable
     /\.(cmd|bat|ps1|psm1|psd1|sh|bash|zsh|vbs|vbe|wsf|hta|lnk|exe|dll|msi|reg|scr)$/.test(n)
@@ -297,9 +299,10 @@ const RULES: Record<string, Rule> = {
   head: { numeric: ['-n'], dashCount: true, maxArgs: 3 },
   tail: { numeric: ['-n'], dashCount: true, maxArgs: 3 },
   wc: { cluster: /^-[lwcm]+$/, maxArgs: 5 },
-  grep: { cluster: /^-[nirlcwFERHhvsq]+$/, maxArgs: 6 },
+  // no -r/-R: a recursive walk from "." would read .env and .git contents
+  grep: { cluster: /^-[nilcwFHhvsq]+$/, maxArgs: 6 },
   rg: { cluster: /^-[nilcwFHhvSsq]+$/, maxArgs: 6 },
-  findstr: { flags: ['/n', '/i', '/l', '/c', '/r', '/s', '/v', '/b', '/e', '/x', '/m'], maxArgs: 6, isCaseInsensitive: true },
+  findstr: { flags: ['/n', '/i', '/l', '/c', '/r', '/v', '/b', '/e', '/x', '/m'], maxArgs: 6, isCaseInsensitive: true },
   cd: { maxArgs: 1 },
   'set-location': { flags: [], maxArgs: 1, isCaseInsensitive: true },
   'get-childitem': { flags: ['-recurse', '-name', '-file', '-directory', '-force'], maxArgs: 2, isCaseInsensitive: true },
@@ -317,6 +320,8 @@ const genericAllowed = (name: string, args: Token[]): boolean => {
     const tok = args[i]!
     const t = tok.text
     const key = rule.isCaseInsensitive ? t.toLowerCase() : t
+    // a quoted "--pre=sh" is still a flag to rg/grep: refuse it rather than treat it as a path
+    if (tok.isQuoted && /^[-/]/.test(t) && name !== 'echo') return false
     if (!tok.isQuoted && /^[-/]/.test(t) && !(name === 'echo')) {
       if (rule.flags?.includes(key)) continue
       if (rule.numeric?.includes(key)) {
@@ -366,21 +371,7 @@ const gitAllowed = (args: Token[]): boolean => {
       return texts.every(t => ['-a', '-r', '--list', '-v', '-vv', '--show-current'].includes(t))
     case 'add':
       return texts.length > 0 && texts.every(t => t !== '.' && (t === '--' || isGitArg(t)))
-    case 'commit': {
-      let hasMessage = false
-      for (let i = 0; i < rest.length; i++) {
-        const t = rest[i]!.text
-        if (t === '-a' || t === '--all' || t === '--allow-empty') continue
-        if (t === '-m' || t === '-am') {
-          if (rest[i + 1] === undefined) return false
-          hasMessage = true
-          i++ // the message itself: any text (already screened for $, `, %, …)
-          continue
-        }
-        return false
-      }
-      return hasMessage
-    }
+    // no `commit`: it runs the repo's hooks (pre-commit etc.), so it always waits for Kaja
     case 'stash':
       return texts.length === 1 && texts[0] === 'list'
     case 'rev-parse':

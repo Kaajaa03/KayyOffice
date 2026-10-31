@@ -6,6 +6,7 @@ const de = {
   // permission card
   'card.wants': '{who} möchte {tool} benutzen',
   'card.noDetails': '(keine Details)',
+  'card.asks': '{who} fragt:',
   'card.allow': 'Erlauben',
   'card.deny': 'Ablehnen',
   'card.more': '+{n} weitere warten',
@@ -31,6 +32,7 @@ const de = {
   'pill.browser': 'Browser',
   'pill.thinking': 'denkt',
   'label.subAgent': 'Sub-Agent',
+  'label.chat': 'Chat',
   // room
   'room.stats': 'Arbeitet: {working}  ·  Wartet: {waiting}',
   'room.overflow': '+{n} weitere',
@@ -126,6 +128,7 @@ export type Key = keyof typeof de;
 const en: Record<Key, string> = {
   'card.wants': '{who} wants to use {tool}',
   'card.noDetails': '(no details)',
+  'card.asks': '{who} asks:',
   'card.allow': 'Allow',
   'card.deny': 'Deny',
   'card.more': '+{n} more waiting',
@@ -149,6 +152,7 @@ const en: Record<Key, string> = {
   'pill.browser': 'browser',
   'pill.thinking': 'thinking',
   'label.subAgent': 'sub-agent',
+  'label.chat': 'Chat',
   'room.stats': 'Working: {working}  ·  Waiting: {waiting}',
   'room.overflow': '+{n} more',
   'room.displayWorking': 'Working {n}',

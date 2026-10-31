@@ -1,15 +1,15 @@
 import http from 'node:http';
 import { NonceCache, responseProof, verifyAuth } from './auth';
 import type { AddressInfo } from 'node:net';
-import { MAX_BODY_BYTES, parseEvent, str } from './validate';
-import type { AgentEvent, PermissionDecision, PermissionPayload } from '../shared/types';
+import { MAX_BODY_BYTES, cleanLabel, parseEvent, str } from './validate';
+import type { AgentEvent, PermissionAnswer, PermissionPayload } from '../shared/types';
 
 export interface ServerOptions {
   token: string;
   port: number;
   onEvent: (e: AgentEvent) => void;
   /** Resolves with the user's decision; aborted when the client disconnects. */
-  onPermission?: (p: PermissionPayload, signal: AbortSignal) => Promise<PermissionDecision>;
+  onPermission?: (p: PermissionPayload, signal: AbortSignal) => Promise<PermissionAnswer>;
 }
 
 interface RunningServer {
@@ -20,19 +20,23 @@ interface RunningServer {
 
 const HOST = '127.0.0.1';
 const MAX_PORT_TRIES = 20;
+const MAX_OPTIONS = 4;
+const BODY_TIMEOUT_MS = 10_000;
 
 /** Collects a size-limited body; answers 413 itself when the limit is exceeded. */
 function readBody(req: http.IncomingMessage, res: http.ServerResponse, done: (body: Buffer) => void): void {
   const chunks: Buffer[] = [];
   let size = 0;
   let rejected = false;
+  req.setTimeout(BODY_TIMEOUT_MS, () => req.destroy()); // a slow body must not hold the socket open
+  req.on('error', () => {}); // aborted uploads are normal; nothing to answer
   req.on('data', (c: Buffer) => {
     if (rejected) return;
     size += c.length;
     if (size > MAX_BODY_BYTES) {
       rejected = true;
       chunks.length = 0;
-      res.writeHead(413, { Connection: 'close' }).end();
+      res.writeHead(413, { Connection: 'close' }).end(() => req.destroy());
       return;
     }
     chunks.push(c);
@@ -47,7 +51,13 @@ function parsePermission(raw: unknown): PermissionPayload | null {
   const agentId = str(r.agentId, 200);
   const tool = str(r.tool, 100);
   if (!sessionId || !agentId || !tool) return null;
-  return { sessionId, agentId, tool, summary: str(r.summary, 300) ?? '' };
+  const summary = str(r.summary, 300) ?? '';
+  if (r.options === undefined) return { sessionId, agentId, tool, summary };
+  // A question card: only for AskUserQuestion, with 2-4 non-empty option labels; anything else is malformed.
+  if (tool !== 'AskUserQuestion' || !Array.isArray(r.options) || r.options.length < 2 || r.options.length > MAX_OPTIONS) return null;
+  const options = r.options.map((o) => cleanLabel(o, 80));
+  if (!summary.trim() || options.some((o) => o === undefined)) return null;
+  return { sessionId, agentId, tool, summary: cleanLabel(summary, 300)!, options: options as string[] };
 }
 
 export function startServer(opts: ServerOptions): Promise<RunningServer> {
@@ -85,12 +95,18 @@ export function startServer(opts: ServerOptions): Promise<RunningServer> {
       if (!payload) return void res.writeHead(400).end();
       // The client trusts a decision only with a proof that binds nonce AND decision and needs the
       // token, so a process squatting on the port cannot forge an allow.
-      const reply = (decision: PermissionDecision) => {
+      // A clicked option goes out as decision "choice:<index>" (proof over exactly that string), only for a
+      // question; the labels never travel back, the mod maps the index onto its own question.
+      const reply = (answer: PermissionAnswer) => {
         if (res.writableEnded) return;
+        const choice = typeof answer === 'object' ? answer.choice : undefined;
+        const valid = choice === undefined || (payload.options !== undefined && Number.isInteger(choice) && choice >= 0 && choice < payload.options.length);
+        const out = valid ? answer : 'ask';
+        const proofOf = typeof out === 'object' ? `choice:${out.choice}` : out;
         res.writeHead(200, {
           'content-type': 'application/json',
-          'x-kayy-proof': responseProof(opts.token, nonce as string, decision),
-        }).end(JSON.stringify({ decision }));
+          'x-kayy-proof': responseProof(opts.token, nonce as string, proofOf),
+        }).end(JSON.stringify(typeof out === 'object' ? { decision: 'choice', choice: out.choice } : { decision: out }));
       };
       if (!opts.onPermission) return reply('ask');
       const ac = new AbortController();

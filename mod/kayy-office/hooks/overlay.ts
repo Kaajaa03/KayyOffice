@@ -7,9 +7,11 @@ import { setLink, type Office } from './state'
 export const PAUSE_MS = 30_000
 /** Events waiting behind a slow overlay beyond this are dropped, never queued without end. */
 const MAX_QUEUED = 50
+/** A question card waits this long for a click (a hair over the approver's 20 s), then the normal dialog takes over. */
+export const QUESTION_TIMEOUT_MS = 21_000
 
 export type Decision = 'allow' | 'deny' | 'ask'
-export type PermissionPayload = { sessionId: string; agentId: string; tool: string; summary: string }
+export type PermissionPayload = { sessionId: string; agentId: string; tool: string; summary: string; options?: string[] }
 
 export const parseConfig = (text: unknown): { token: string; port: number } | undefined => {
   if (typeof text !== 'string') return undefined
@@ -53,6 +55,24 @@ export const verifyReply = (token: string, nonce: string, reply: { headers: Reco
   if (decision !== 'allow' && decision !== 'deny') return 'ask'
   const proof = String(reply.headers['x-kayy-proof'] ?? '')
   return equalsConstantTime(proof, hmacHex(token, `res|${nonce}|${decision}`)) ? decision : 'ask'
+}
+
+/**
+ * Reads a /permission reply to a question card: the clicked option index, only when
+ * `x-kayy-proof` equals HMAC-SHA256(token, "res|" + nonce + "|choice:" + index) for exactly that index
+ * and the index is one of the `count` options. Anything else is undefined (the normal dialog).
+ */
+export const verifyChoice = (token: string, nonce: string, reply: { headers: Record<string, string>; text: string }, count: number): number | undefined => {
+  let parsed: { decision?: unknown; choice?: unknown }
+  try {
+    parsed = JSON.parse(reply.text)
+  } catch {
+    return undefined
+  }
+  const index = parsed?.choice
+  if (parsed?.decision !== 'choice' || typeof index !== 'number' || !Number.isInteger(index) || index < 0 || index >= count) return undefined
+  const proof = String(reply.headers['x-kayy-proof'] ?? '')
+  return equalsConstantTime(proof, hmacHex(token, `res|${nonce}|choice:${index}`)) ? index : undefined
 }
 
 /** Reads `%APPDATA%\KayyOffice\config.json` (or `$KAYY_CONFIG_DIR/config.json`, as the hook does). */
@@ -120,6 +140,21 @@ export function sendEvent($: EngineInterface, office: Office, event: AgentEvent)
  * the overlay is off, paused or failed.
  */
 export async function askOverlay($: EngineInterface, office: Office, payload: PermissionPayload): Promise<Decision | undefined> {
+  const reply = await postPermission($, office, payload)
+  return reply === undefined ? undefined : verifyReply(reply.token, reply.nonce, reply)
+}
+
+/** Asks a question card: the index of the option the person clicked, undefined without a proven click. */
+export async function askQuestion($: EngineInterface, office: Office, payload: PermissionPayload & { options: string[] }): Promise<number | undefined> {
+  let timer: { cancel: () => void } | undefined
+  const timeout = new Promise<undefined>(resolve => {
+    timer = $.clock.after(QUESTION_TIMEOUT_MS, () => resolve(undefined))
+  })
+  const reply = await Promise.race([postPermission($, office, payload), timeout]).finally(() => timer?.cancel())
+  return reply === undefined ? undefined : verifyChoice(reply.token, reply.nonce, reply, payload.options.length)
+}
+
+async function postPermission($: EngineInterface, office: Office, payload: PermissionPayload & { options?: string[] }) {
   try {
     if (await isPaused($, office)) return undefined
     const config = await loadConfig($, office)
@@ -132,7 +167,7 @@ export async function askOverlay($: EngineInterface, office: Office, payload: Pe
     })
     if (!res.ok) throw new Error(`status ${res.status}`)
     await setLink($, office, 'ok')
-    return verifyReply(config.token, nonce, res)
+    return { token: config.token, nonce, headers: res.headers, text: res.text }
   } catch {
     await pause($, office).catch(() => undefined)
     return undefined

@@ -1,8 +1,9 @@
 import { atom, read, update, type EngineInterface, type Register } from 'claude-code'
 import type { AgentRow, PendingRow } from '../types'
+import { QUESTION_TOOL, askQuestions, askableOf, resultOf } from './question'
 import { PANE_ID, approve, ioFor, shouldForward, type CheckEvent } from './approver'
 import { errorOf, fileOf, makeEvent, type EventName } from './mapping'
-import { sendEvent } from './overlay'
+import { askQuestion, sendEvent } from './overlay'
 import { hasTodoList, sameProgress, todoProgress, type Progress } from './progress'
 import { renderPane } from './pane'
 import { autopilotCheck } from './autopilot'
@@ -28,6 +29,22 @@ async function where($: EngineInterface, office: Office) {
   if (office.sessionId === undefined) office.sessionId = await $.session.id()
   if (office.cwd === undefined) office.cwd = await $.session.cwd()
   return { ts: await $.clock.now(), sessionId: office.sessionId, cwd: office.cwd }
+}
+
+/**
+ * The tool result of an AskUserQuestion the person answered by clicking option buttons on the overlay,
+ * else undefined (the normal dialog opens). Any failure is undefined; nothing is ever answered unclicked.
+ */
+async function answerFromOverlay($: EngineInterface, office: Office, e: { agentId?: string; questions?: unknown }) {
+  try {
+    const questions = askableOf(e)
+    if (questions === undefined) return undefined
+    const at = await where($, office)
+    const answers = await askQuestions(p => askQuestion($, office, p), questions, { sessionId: at.sessionId, agentId: e.agentId ?? at.sessionId })
+    return answers === undefined ? undefined : { result: resultOf(e, answers) }
+  } catch {
+    return undefined
+  }
 }
 
 /** Sends one event; the overlay is optional, so any failure is swallowed. */
@@ -214,7 +231,10 @@ export const register: Register = on => {
       await emit($, office, 'Notification', e.agentId, { tool: e.tool, message: `Entscheidung: ${question}`, model: modelOf(office, e.agentId) })
       await quietly(setDecision($, question))
     }
-    const ran = await next(e).finally(() => (question !== undefined ? quietly(setDecision($, null)) : undefined))
+    // AskUserQuestion: a click on the overlay's card answers it; no click, no answer: the dialog opens as always.
+    const answered = e.tool === QUESTION_TOOL ? await answerFromOverlay($, office, e) : undefined
+    const ran = answered ?? (await next(e).finally(() => (question !== undefined ? quietly(setDecision($, null)) : undefined)))
+    if (answered !== undefined && question !== undefined) await quietly(setDecision($, null))
     const message = errorOf(e.tool, ran)
     const progress = nextProgress(office, row, e, message !== undefined)
     await emit($, office, 'PostToolUse', e.agentId, { tool: e.tool, file, message, progress, model: modelOf(office, e.agentId) })
@@ -254,6 +274,8 @@ export const register: Register = on => {
       const row: Partial<AgentRow> = { parentId: e.parentAgentId ?? MAIN, type: e.subagentType, status: 'running', model }
       await quietly(setAgent($, agentId, row))
       await emit($, office, 'SubagentStart', agentId, { parentId, agentType: e.subagentType, model })
+      // The overlay keeps the roster in memory only; after its restart the waiting area stays empty until this is sent again.
+      if (office.roster.size > 0) await quietly(emitRoster($, office))
     }
     return started
   }).catch(($, e, next) => next(e))

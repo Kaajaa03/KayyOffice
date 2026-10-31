@@ -9,7 +9,8 @@ describe('labelFor', () => {
     expect(labelFor(ag({ role: 'Reviewer', parentId: 'p' }), 'de')).toBe('Reviewer');
     expect(labelFor(ag({ parentId: 'p' }), 'en')).toBe('sub-agent');
     expect(labelFor(ag({ parentId: 'p' }), 'de')).toBe('Sub-Agent');
-    expect(labelFor(ag({}), 'de')).toBe('KayyOffice');
+    expect(labelFor(ag({}), 'de')).toBe('Chat');
+    expect(labelFor(ag({ parentId: 'p', name: 'Explore' }), 'de')).toBe('Explore');
   });
 });
 
@@ -71,5 +72,15 @@ describe('askerLabel (who asks on the permission card)', () => {
   });
   it('falls back to the short agent id when the agent is unknown', () => {
     expect(askerLabel(undefined, 'abcdefghijkl', [], 'de')).toBe('abcdefgh');
+  });
+});
+
+describe('subagent name pipeline', () => {
+  it('SubagentStart agentType survives parseEvent + reduce and shows as the pill title', async () => {
+    const { parseEvent } = await import('../src/main/validate');
+    const { initialState, reduce } = await import('../src/main/state');
+    const e = parseEvent({ ts: 1, sessionId: 's', agentId: 'a1', parentId: 's', event: 'SubagentStart', cwd: 'C:\p', agentType: 'Explore' })!;
+    const a = reduce(initialState(), e).agents.a1;
+    expect(labelFor(a, 'de')).toBe('Explore');
   });
 });

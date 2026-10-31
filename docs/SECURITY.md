@@ -17,7 +17,7 @@ Ein einzelner Windows-Benutzer, der seine eigenen Projekte bearbeitet. Andere Pr
 
 ## Freigaben
 - Das Overlay und der Mod ändern nie ein core-`deny`. Der Mod gibt nur ein core-`ask` weiter, nur für echte Aufrufe (`tool_use_id`) mit Person als Entscheider.
-- `ExitPlanMode` und `AskUserQuestion` werden nie über das Overlay beantwortet.
+- `ExitPlanMode` wird nie über das Overlay beantwortet. `AskUserQuestion` nur als Fragekarte (Knopf je Option, nie Erlauben/Ablehnen): Antwort nur nach echtem Klick (600 ms Scharfschaltung), die Antwort trägt nur den Index mit Beweis `HMAC(token, "res|nonce|choice:<i>")`, der Text kommt aus der eigenen Frage des Mods. Mehrfachauswahl, Text- und Zahlfragen, Timeout oder App aus: normaler Claude-Dialog, nie eine Standardantwort.
 - **Autopilot** (Opt-in, Standard aus) darf nur Routine im Projektordner freigeben: Lesen/Schreiben im `root` der Session (Laufwerks-Wurzel, Home und Systemordner schalten ihn ab), nie in `.git/`, `.claude/`, `.vscode/`, `.ssh/`, nie in Konfigurations- oder Skriptdateien (`package.json`, `*.config.*`, `.husky/`, CI-Workflows, `.mcp.json` …) und keine Geheimnisse. Shell nur mit Positivliste (jeder Befehl, jede Option, jedes Argument), ohne Umleitungen, Substitution, Umgebungsvariablen oder Pfade außerhalb des Projekts. Ein unabhängiger Angriffs-Review (Umgebungsvariablen, Test-Runner-Optionen, Pfad-Tricks, Konfig-dann-Test-Ketten) ist eingearbeitet.
 
 ## Restrisiken, bewusst

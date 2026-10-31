@@ -71,6 +71,9 @@ function chipBadge(q: Ctx, chip: NonNullable<Chip>, x: number, y: number, w: num
   q.textAlign = 'left';
 }
 
+/** Snaps a css coordinate to a whole device pixel, so text stays sharp at fractional scales. */
+const snap = (v: number, dpr: number): number => Math.round(v * dpr) / dpr;
+
 /** Single line of cached text at css (x, baseline y). */
 export function drawText(c: Ctx, text: string, x: number, y: number, font: string, color: string, align: 'left' | 'center' | 'right', dpr: number): void {
   const w = Math.ceil(measure(text, font)) + 2;
@@ -80,7 +83,7 @@ export function drawText(c: Ctx, text: string, x: number, y: number, font: strin
     q.fillText(text, 1, 10);
   });
   const left = align === 'left' ? x : align === 'center' ? x - w / 2 : x - w;
-  c.drawImage(cv, Math.round(left), Math.round(y - 10), w, 14);
+  c.drawImage(cv, snap(left, dpr), snap(y - 10, dpr), w, 14);
 }
 
 /** One centred line made of differently coloured runs, joined by a dim separator. */
@@ -137,7 +140,7 @@ export function drawPill(c: Ctx, agent: Agent, cx: number, top: number, dpr: num
       q.fillRect(5, PILL_H - 4, Math.max(p.progress > 0 ? 1 : 0, Math.round(bw * p.progress)), 2);
     }
   });
-  c.drawImage(cv, Math.round(cx - w / 2), Math.round(top), w, PILL_H);
+  c.drawImage(cv, snap(cx - w / 2, dpr), snap(top, dpr), w, PILL_H);
 }
 
 const benchTagText = (name: string): string => fit(name, SMALL_FONT, TAG_MAX);
@@ -154,13 +157,15 @@ export function drawBenchTag(c: Ctx, name: string, chip: Chip, cx: number, top: 
     q.fillText(text, 4, 8);
     if (chip) chipBadge(q, chip, 4 + measure(text, SMALL_FONT) + 3, 1.5, 7, 8, 2, 6, 7.6);
   });
-  c.drawImage(cv, Math.round(cx - w / 2), Math.round(top), w, BENCH_TAG_H);
+  c.drawImage(cv, snap(cx - w / 2, dpr), snap(top, dpr), w, BENCH_TAG_H);
 }
 
 /** Small pill shown briefly after start so an empty overlay does not look dead. */
-export function drawHint(c: Ctx, w: number, text: string): void {
+export function drawHint(c: Ctx, w: number, raw: string): void {
   c.save();
-  c.font = `600 12px ${MONO}`;
+  const font = `600 12px ${MONO}`;
+  const text = fit(raw, font, w - 52); // 36 px chrome + margin
+  c.font = font;
   const tw = c.measureText(text).width + 36;
   const x = Math.round((w - tw) / 2);
   c.fillStyle = 'rgba(24,32,46,0.94)';

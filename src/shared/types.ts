@@ -101,11 +101,16 @@ export interface Agent {
 
 export type PermissionDecision = 'allow' | 'deny' | 'ask';
 
+/** What a card gives back: allow/deny/ask, or the index of the clicked option of a question card. */
+export type PermissionAnswer = PermissionDecision | { choice: number };
+
 export interface PermissionPayload {
   sessionId: string;
   agentId: string;
   tool: string;
   summary: string;
+  /** AskUserQuestion only: the option labels of the one question in `summary` (2-4). */
+  options?: string[];
 }
 
 export interface PermissionRequestInfo {
@@ -113,6 +118,7 @@ export interface PermissionRequestInfo {
   agentId: string;
   tool: string;
   summary: string;
+  options?: string[];
   ts: number;
 }
 

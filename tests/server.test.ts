@@ -132,6 +132,42 @@ describe('server /permission', () => {
   });
 });
 
+describe('server /permission question cards', () => {
+  const q = (extra: object = {}) => JSON.stringify({ sessionId: 's', agentId: 'a', tool: 'AskUserQuestion', summary: 'Which?', options: ['A', 'B'], ...extra });
+
+  it('passes the question and options on and proves exactly the clicked index', async () => {
+    const seen: unknown[] = [];
+    const s = await startServer({ token: TOKEN, port: 48140, onEvent: () => {}, onPermission: async (p) => { seen.push(p); return { choice: 1 }; } });
+    closers.push(s.close);
+    const nonce = randomBytes(16).toString('hex');
+    const res = await signedPost(s.port, '/permission', q(), { nonce });
+    expect(await res.json()).toEqual({ decision: 'choice', choice: 1 });
+    expect(res.headers.get('x-kayy-proof')).toBe(responseProof(TOKEN, nonce, 'choice:1'));
+    expect(res.headers.get('x-kayy-proof')).not.toBe(responseProof(TOKEN, nonce, 'choice:0'));
+    expect(res.headers.get('x-kayy-proof')).not.toBe(responseProof(TOKEN, nonce, 'allow'));
+    expect(seen).toEqual([{ sessionId: 's', agentId: 'a', tool: 'AskUserQuestion', summary: 'Which?', options: ['A', 'B'] }]);
+  });
+  it('an index outside the options, or a choice for a plain request, turns into ask', async () => {
+    const s = await startServer({ token: TOKEN, port: 48145, onEvent: () => {}, onPermission: async () => ({ choice: 5 }) });
+    closers.push(s.close);
+    const nonce = randomBytes(16).toString('hex');
+    const res = await signedPost(s.port, '/permission', q(), { nonce });
+    expect(await res.json()).toEqual({ decision: 'ask' });
+    expect(res.headers.get('x-kayy-proof')).toBe(responseProof(TOKEN, nonce, 'ask'));
+    const plain = await signedPost(s.port, '/permission', JSON.stringify({ sessionId: 's', agentId: 'a', tool: 'Bash', summary: 'ls' }));
+    expect(await plain.json()).toEqual({ decision: 'ask' });
+  });
+  it('rejects options on another tool, too few or too many options, empty labels', async () => {
+    let asked = 0;
+    const s = await startServer({ token: TOKEN, port: 48150, onEvent: () => {}, onPermission: async () => { asked++; return 'ask'; } });
+    closers.push(s.close);
+    for (const bad of [{ tool: 'Bash' }, { options: ['A'] }, { options: ['1', '2', '3', '4', '5'] }, { options: ['A', ''] }, { options: 'AB' }, { summary: '' }]) {
+      expect((await signedPost(s.port, '/permission', q(bad))).status).toBe(400);
+    }
+    expect(asked).toBe(0);
+  });
+});
+
 describe('server Host check (DNS rebinding)', () => {
   /** Raw request so the Host header can be chosen freely. */
   function rawPost(port: number, host: string | undefined, body: string, endBody = true): Promise<number> {

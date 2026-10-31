@@ -43,3 +43,17 @@ describe('ClickGuard', () => {
     expect(g.up(allow('r1'), 4001)).toEqual(allow('r1'));
   });
 });
+
+describe('ClickGuard with option buttons', () => {
+  const pick = (id: string, choice: number) => ({ id, decision: 'choice' as const, choice });
+  it('needs the arming delay, and down and up on the same option', () => {
+    const g = new ClickGuard();
+    g.show('q', 1000);
+    g.down(pick('q', 0), 1100);
+    expect(g.up(pick('q', 0), 1200)).toBeNull(); // not armed yet
+    g.down(pick('q', 0), 1700);
+    expect(g.up(pick('q', 1), 1710)).toBeNull(); // slid onto another option
+    g.down(pick('q', 1), 1800);
+    expect(g.up(pick('q', 1), 1810)).toEqual(pick('q', 1));
+  });
+});

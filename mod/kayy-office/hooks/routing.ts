@@ -11,6 +11,7 @@ export const DEFAULT_RULES: Rules = {
   byType: {
     Explore: 'haiku',
     'kayy-scout': 'haiku',
+    'codex-worker': 'haiku',
     'claude-code-guide': 'haiku',
     'general-purpose': 'sonnet',
     'kayy-coder': 'sonnet',

@@ -2,8 +2,8 @@
 // click meant for the window underneath can never approve a request the user has not read.
 export const ARM_DELAY_MS = 600;
 
-interface Target { id: string; decision: 'allow' | 'deny' }
-const key = (t: Target) => `${t.id}:${t.decision}`;
+interface Target { id: string; decision: 'allow' | 'deny' | 'choice'; choice?: number }
+const key = (t: Target) => `${t.id}:${t.decision}:${t.choice ?? ''}`;
 
 export class ClickGuard {
   private shownId: string | null = null;

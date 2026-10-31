@@ -1,11 +1,11 @@
-import type { PermissionDecision, PermissionRequestInfo } from '../shared/types';
+import type { PermissionAnswer, PermissionRequestInfo } from '../shared/types';
 
 /** After this long without an answer the mod falls back to Claude Code's normal prompt. */
 export const PERMISSION_TIMEOUT_MS = 20000;
 
 interface Waiting {
   info: PermissionRequestInfo;
-  settle: (d: PermissionDecision) => void;
+  settle: (d: PermissionAnswer) => void;
 }
 
 export class PermissionQueue {
@@ -18,10 +18,10 @@ export class PermissionQueue {
     this.onChange = opts.onChange;
   }
 
-  add(req: Omit<PermissionRequestInfo, 'ts'>, signal?: AbortSignal): Promise<PermissionDecision> {
+  add(req: Omit<PermissionRequestInfo, 'ts'>, signal?: AbortSignal): Promise<PermissionAnswer> {
     return new Promise((resolve) => {
       let timer: ReturnType<typeof setTimeout>;
-      const settle = (d: PermissionDecision) => {
+      const settle = (d: PermissionAnswer) => {
         if (!this.items.delete(req.id)) return;
         clearTimeout(timer);
         signal?.removeEventListener('abort', onAbort);
@@ -36,10 +36,20 @@ export class PermissionQueue {
     });
   }
 
+  /** Allow/deny of a permission card. A question card (it has options) is never allowed or denied. */
   resolve(id: string, decision: 'allow' | 'deny'): boolean {
     const w = this.items.get(id);
-    if (!w) return false;
+    if (!w || w.info.options) return false;
     w.settle(decision);
+    return true;
+  }
+
+  /** The click on option `index` of a question card; false for any other card or an index out of range. */
+  choose(id: string, index: number): boolean {
+    const w = this.items.get(id);
+    const n = w?.info.options?.length ?? 0;
+    if (!w || !Number.isInteger(index) || index < 0 || index >= n) return false;
+    w.settle({ choice: index });
     return true;
   }
 

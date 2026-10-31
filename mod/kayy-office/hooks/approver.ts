@@ -2,6 +2,7 @@ import { atom, update, type EngineInterface } from 'claude-code'
 import type { PendingRow } from '../types'
 import { summaryOf } from './mapping'
 import { askOverlay, type Decision, type PermissionPayload } from './overlay'
+import { QUESTION_TOOL } from './question'
 import type { Office } from './state'
 
 const pending = atom({ plugin: 'kayy-office', key: 'pending' } as const, [] as PendingRow[], { shape: 'pending-1' })
@@ -14,8 +15,11 @@ export const ASK_TIMEOUT_MS = 20_000
  */
 export const PANE_ONLY_MS = 7_000
 
-/** Interactive tools: their dialog is a real question to the person, never answered from outside. */
-export const NEVER_FORWARD = new Set(['ExitPlanMode', 'AskUserQuestion'])
+/**
+ * Interactive tools whose dialog is never answered from outside. AskUserQuestion is not here: it
+ * reaches the overlay only through `question.ts` (a card of option buttons, never allow/deny).
+ */
+export const NEVER_FORWARD = new Set(['ExitPlanMode'])
 
 export const PANE_ID = 'kayy-office'
 
@@ -27,7 +31,7 @@ export type Verdict = { decision: 'allow' | 'ask' | 'deny'; reason?: string }
  * never a query from another plugin, never a host or headless approver, never a core allow/deny.
  */
 export const shouldForward = (e: CheckEvent, core: Verdict): boolean =>
-  core.decision === 'ask' && !NEVER_FORWARD.has(e.tool) && e.tool_use_id !== undefined && e.approver === 'person'
+  core.decision === 'ask' && !NEVER_FORWARD.has(e.tool) && e.tool !== QUESTION_TOOL && e.tool_use_id !== undefined && e.approver === 'person'
 
 /** What the approver needs from the outside world; `ioFor` builds it from `$`, tests fake it. */
 export type ApproverIo = {

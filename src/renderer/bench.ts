@@ -24,8 +24,8 @@ export function benchName(type: string): string {
 export const typeInUse = (type: string, agents: Agent[]): boolean =>
   agents.some((a) => a.name === type && IN_USE.has(a.status));
 
-/** Roster entries that wait (in roster order, first BENCH_SPOTS shown) and how many more do not fit. */
-export function benchPlan(roster: RosterEntry[] | undefined, agents: Agent[]): BenchPlan {
+/** Roster entries that wait (in roster order, first `capacity` shown) and how many more do not fit. */
+export function benchPlan(roster: RosterEntry[] | undefined, agents: Agent[], capacity = BENCH_SPOTS): BenchPlan {
   const seen = new Set<string>();
   const waiting: BenchFigure[] = [];
   for (const e of roster ?? []) {
@@ -34,5 +34,5 @@ export function benchPlan(roster: RosterEntry[] | undefined, agents: Agent[]): B
     if (typeInUse(e.type, agents)) continue;
     waiting.push({ type: e.type, name: benchName(e.type), model: e.model, chip: modelChip(e.model) });
   }
-  return { figures: waiting.slice(0, BENCH_SPOTS), more: Math.max(0, waiting.length - BENCH_SPOTS) };
+  return { figures: waiting.slice(0, capacity), more: Math.max(0, waiting.length - capacity) };
 }

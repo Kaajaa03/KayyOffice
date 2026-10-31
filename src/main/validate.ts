@@ -11,6 +11,12 @@ const MAX_CURRENT = 80;
 // C0/C1 controls and the Unicode line/paragraph separators: they must never reach a canvas label
 const CONTROL = new RegExp('[\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029]', 'g');
 
+/** A label for the canvas: control characters become spaces, trimmed, cut; undefined when nothing is left. */
+export const cleanLabel = (v: unknown, max: number): string | undefined => {
+  if (typeof v !== 'string') return undefined;
+  return v.replace(CONTROL, ' ').trim().slice(0, max) || undefined;
+};
+
 function parseProgress(raw: unknown): Progress | undefined {
   if (typeof raw !== 'object' || raw === null) return undefined;
   const { done, total, current } = raw as Record<string, unknown>;

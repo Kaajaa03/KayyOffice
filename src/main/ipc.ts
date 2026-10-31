@@ -47,12 +47,23 @@ export function registerIpc({ win, settings, model, queue, office, action }: Ipc
     if (fromOverlay(e) && (dir === 1 || dir === -1)) model.stepScale(dir);
   });
 
+  // a settled card lets the office show the agent working again
+  const settled = (info: { agentId: string; tool: string }) => {
+    const a = office.agent(info.agentId);
+    if (a) office.apply({ ts: Date.now(), sessionId: a.sessionId, agentId: a.id, event: 'PreToolUse', tool: info.tool, cwd: a.cwd });
+  };
+
   ipcMain.on('permission:decide', (e, id: unknown, decision: unknown) => {
     if (!fromOverlay(e) || typeof id !== 'string' || (decision !== 'allow' && decision !== 'deny')) return;
     const info = queue.pending().find((p) => p.id === id);
-    if (!info || !queue.resolve(id, decision)) return;
-    const a = office.agent(info.agentId);
-    if (a) office.apply({ ts: Date.now(), sessionId: a.sessionId, agentId: a.id, event: 'PreToolUse', tool: info.tool, cwd: a.cwd });
+    if (info && queue.resolve(id, decision)) settled(info);
+  });
+
+  // a click on option `index` of a question card (queue.choose refuses anything but a question and a bad index)
+  ipcMain.on('permission:choose', (e, id: unknown, index: unknown) => {
+    if (!fromOverlay(e) || typeof id !== 'string' || typeof index !== 'number') return;
+    const info = queue.pending().find((p) => p.id === id);
+    if (info && queue.choose(id, index)) settled(info);
   });
 
   ipcMain.handle('settings:get', (e) => (settings.owns(e.sender) ? model.snapshot() : null));

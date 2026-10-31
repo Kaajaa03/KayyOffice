@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('kayy', {
     ipcRenderer.on('permissions', (_e, p: PermissionRequestInfo[]) => cb(p)),
   setInteractive: (v: boolean) => ipcRenderer.send('interactive', v),
   decide: (id: string, decision: 'allow' | 'deny') => ipcRenderer.send('permission:decide', id, decision),
+  choose: (id: string, index: number) => ipcRenderer.send('permission:choose', id, index),
   /** Dragging the title strip: main follows the real cursor (independent of page zoom), then saves the position. */
   dragStart: () => ipcRenderer.send('drag:start'),
   dragMove: () => ipcRenderer.send('drag:move'),

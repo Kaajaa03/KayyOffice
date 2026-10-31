@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { appLog } from './diag';
 import { writeFileAtomic } from './fsutil';
@@ -35,13 +35,16 @@ export function loadConfig(dir: string): Config {
     try {
       const c = JSON.parse(readFileSync(file, 'utf8')) as Partial<Config>;
       if (typeof c.token === 'string' && c.token.length >= 32) {
-        return { ...c, token: c.token, port: typeof c.port === 'number' ? c.port : DEFAULT_PORT };
+        const p = c.port ?? 0;
+        return { ...c, token: c.token, port: Number.isInteger(p) && p >= 1024 && p <= 65535 ? p : DEFAULT_PORT };
       }
     } catch (e) {
       appLog('warn', 'config: config.json unreadable, generating a new one', e);
     }
   }
   mkdirSync(dir, { recursive: true });
+  // keep the broken file so the settings in it are not lost silently
+  if (existsSync(file)) copyFileSync(file, `${file}.bak`);
   const fresh: Config = { token: randomBytes(32).toString('hex'), port: DEFAULT_PORT };
   writeFileAtomic(file, JSON.stringify(fresh, null, 2));
   return fresh;

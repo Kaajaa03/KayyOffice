@@ -29,14 +29,17 @@ export function startIngest(d: IngestDeps) {
       d.office.apply(e);
     },
     onPermission: (p, signal) => {
-      // everyday requests stay with Claude's own dialog; the overlay only speaks up for real risks
-      if (!shouldShowCard(d.approvalMode(), p.tool, p.summary)) return Promise.resolve('ask' as const);
+      // A question is never an allow/deny card: only with its options, and not when the cards are off.
+      const isQuestion = p.tool === 'AskUserQuestion';
+      if (isQuestion ? !p.options || d.approvalMode() === 'off' : !shouldShowCard(d.approvalMode(), p.tool, p.summary)) {
+        return Promise.resolve('ask' as const); // everyday requests stay with Claude's own dialog
+      }
       d.office.apply({
         ts: Date.now(), sessionId: p.sessionId, agentId: p.agentId, event: 'Notification',
         cwd: d.office.agent(p.agentId)?.cwd ?? '', message: `permission: ${p.tool}`,
       });
       d.showOverlay();
-      return d.queue.add({ id: randomUUID(), agentId: p.agentId, tool: p.tool, summary: p.summary }, signal);
+      return d.queue.add({ id: randomUUID(), agentId: p.agentId, tool: p.tool, summary: p.summary, options: p.options }, signal);
     },
   });
 }
