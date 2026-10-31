@@ -6,7 +6,12 @@ on:
 
 jobs:
   check:
-    runs-on: windows-latest
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -17,3 +22,29 @@ jobs:
       - run: npx tsc --noEmit
       - run: npx vitest run
       - run: npm run build
+
+      - name: Claude Code (for the mod tests and the setup script)
+        run: npm i -g @anthropic-ai/claude-code
+      - name: Mod tests and validation
+        run: |
+          claude plugin test mod/kayy-office
+          claude plugin validate mod/kayy-office
+      - name: Setup script (no app start)
+        run: node scripts/setup.mjs --no-start
+
+      - name: App smoke test (demo screenshot, isolated dirs)
+        shell: bash
+        run: |
+          mkdir -p smoke
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            xvfb-run -a npx electron . --no-sandbox --user-data-dir="$PWD/smoke/ud" --config-dir="$PWD/smoke/cfg" --claude-dir="$PWD/smoke/claude" --demo-count=6 --no-card --screenshot="$PWD/smoke/office.png"
+          else
+            npx electron . --user-data-dir="$PWD/smoke/ud" --config-dir="$PWD/smoke/cfg" --claude-dir="$PWD/smoke/claude" --demo-count=6 --no-card --screenshot="$PWD/smoke/office.png"
+          fi
+          test -s smoke/office.png
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-${{ matrix.os }}
+          path: smoke/*.png
+          if-no-files-found: ignore
