@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.1 – 2026-10-31
+- **Ungenutzte Chats** (idle) verlieren nach 5 Minuten ihre Figur.
+- **Wartebereich** wird in `roster.json` gespeichert und überlebt einen Neustart.
+- **Orchestrierungs-Richtlinie** delegiert nach festen Auslösern statt „wenn es sich lohnt“.
+- Autopilot: `git commit` und `grep -r` warten immer auf die Person.
+- README neu gestaltet (Banner, Screenshots, Diagramm).
+
 ## 1.3.0 – 2026-10-31
 Nur noch der Claude-Mod.
 - **Hook-Weg entfernt:** `hook.js`, Installieren/Entfernen, Hinweisdialog und die Quellen-Weiche (`source`) sind weg; der Mod ist der einzige Weg, Agents zu melden. Einstellungen → Verbindung zeigt „Claude-Mod verbunden“ (Event in den letzten 5 Minuten) und sonst den Installationsbefehl.
