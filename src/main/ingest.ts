@@ -5,9 +5,11 @@ import type { ApprovalMode } from './approvals';
 import type { PermissionQueue } from './control';
 import type { EventLog } from './log';
 import type { Office } from './office';
+import { saveRoster } from './rosterstore';
 import { startServer } from './server';
 
 interface IngestDeps {
+  rosterFile: string;
   token: string;
   port: number;
   eventLog: EventLog;
@@ -27,6 +29,7 @@ export function startIngest(d: IngestDeps) {
       d.onEvent();
       d.eventLog.append(e);
       d.office.apply(e);
+      if (e.event === 'Roster' && e.roster) saveRoster(d.rosterFile, e.roster);
     },
     onPermission: (p, signal) => {
       // A question is never an allow/deny card: only with its options, and not when the cards are off.

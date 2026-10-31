@@ -6,6 +6,7 @@ import { createActions } from './actions';
 import { parseApprovalMode } from './approvals';
 import type { ApprovalMode } from './approvals';
 import { resetClickThrough, resetClickThroughWhenIdle } from './clickthrough';
+import { loadRoster } from './rosterstore';
 import { loadConfig, updateConfig } from './config';
 import { PermissionQueue } from './control';
 import { runPerf, screenshotAndQuit } from './devtools';
@@ -69,6 +70,9 @@ async function main(): Promise<void> {
 
   const tray = createTray({ toggle: () => toggleOverlay(win), openSettings: () => settings.open(lang), demo: () => startDemo(DEMO_MS) }, lang);
   const office = new Office({ render, changed: (live) => { awake.update(live); tray.setStats(officeStats(Object.values(live.agents))); } });
+  const rosterFile = join(configDir, 'roster.json');
+  const savedRoster = loadRoster(rosterFile);
+  if (savedRoster) office.apply({ ts: Date.now(), sessionId: '', agentId: '', event: 'Roster', cwd: '', roster: savedRoster });
   const queue = new PermissionQueue({
     onChange: () => {
       if (!win.isDestroyed()) win.webContents.send('permissions', queue.pending());
@@ -128,7 +132,7 @@ async function main(): Promise<void> {
     if (!flags.noCard) void queue.add({ id: 'demo', agentId: flags.demoCount ? `agent${Math.min(3, flags.demoCount)}` : 'reviewer', tool: 'Bash', summary: 'git push --force origin main' });
   } else {
     const server = await startIngest({
-      token: config.token, port, eventLog, office, queue, showOverlay: () => showOverlay(win),
+      token: config.token, port, rosterFile, eventLog, office, queue, showOverlay: () => showOverlay(win),
       approvalMode: () => approvalMode,
       onEvent: () => { lastEventAt = Date.now(); },
     });

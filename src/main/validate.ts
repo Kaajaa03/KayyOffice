@@ -58,7 +58,7 @@ function parseLimit(raw: unknown): UsageLimit | undefined {
 
 const label = (v: unknown): string => (typeof v === 'string' ? v.replace(CONTROL, '').trim().slice(0, MAX_ROSTER_TEXT) : '');
 
-function parseRoster(raw: unknown): RosterEntry[] | undefined {
+export function parseRoster(raw: unknown): RosterEntry[] | undefined {
   if (!Array.isArray(raw)) return undefined;
   const out: RosterEntry[] = [];
   for (const it of raw) {
