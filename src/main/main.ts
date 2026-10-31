@@ -34,9 +34,10 @@ const DEMO_MS = 15000;
 
 const flags = parseFlags(process.argv);
 
-// Measured (tools/perf-check.ts): software rendering + in-process GPU roughly halves RAM
-// (154 -> 84 MB idle) for this small 2D canvas. KAYY_GFX=hw opts back into the GPU process.
-if (process.env.KAYY_GFX !== 'hw') {
+// Software rendering + in-process GPU roughly halves RAM (154 -> 84 MB idle), but on some Windows
+// setups the transparent overlay then never reaches the screen (renders, stays invisible).
+// So hardware rendering is the default; KAYY_GFX=sw opts into the cheaper software path.
+if (process.env.KAYY_GFX === 'sw') {
   app.disableHardwareAcceleration();
   app.commandLine.appendSwitch('in-process-gpu');
 }

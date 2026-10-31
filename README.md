@@ -92,7 +92,7 @@ Gespeichert in `config.json` (`scale`, `position`/`placement`, `opacity`, `langu
 | Leerlauf | ~0,01–0,1 % | ~80 MB |
 | 5 Agents aktiv | ~1 % | ~100 MB |
 
-Möglich durch event-getriebenes Rendering (ohne Aktivität keine Animationsschleife, kein Dauer-Timer), einmal gezeichneten Raum im Cache und Software-Rendering mit In-Process-GPU. `KAYY_GFX=hw` schaltet auf GPU-Rendering.
+Möglich durch event-getriebenes Rendering (ohne Aktivität keine Animationsschleife, kein Dauer-Timer), einmal gezeichneten Raum im Cache und GPU-Rendering (Standard, damit das transparente Fenster sichtbar ist). `KAYY_GFX=sw` schaltet auf den sparsameren Software-Modus (RAM ~halb, Overlay kann auf manchen Systemen unsichtbar bleiben).
 
 ## Sicherheit und Diagnose
 Anfragen an die App sind signiert, der Token geht nie über den Draht; Details in [docs/SECURITY.md](docs/SECURITY.md). Aufbau und Protokoll: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Fehler der App landen als einzeilige Meldungen (ohne Tokens, Befehle, Tool-Ausgaben) in `%APPDATA%\KayyOffice\app.log` (Einstellungen → Werkzeuge → „Diagnose-Log“, max. 256 KB plus `app.log.1`).

@@ -124,7 +124,7 @@ function drawOffice(now: number, agents: Agent[], w: number, dpr: number): numbe
   const desks = layout.layout(agents);
   const cardRoom = permissions.length ? CARD_H + 14 : 0;
   const maxH = Math.min(MAX_H, Math.floor((window.innerHeight - HEADER_H - FOOTER_H - cardRoom) / P));
-  const room = roomLayout(Math.max(...desks.map((d) => d.slot)) + 1, Math.floor((w - 8) / P), maxH);
+  const room = roomLayout(Math.max(0, ...desks.map((d) => d.slot)) + 1, Math.floor((w - 8) / P), maxH);
   const ph = currentPhase(now);
   const { seated, labels, overflow } = seatAgents(desks, state.agents, room);
   ensureStatic(room, ph, new Set(seated.map((x) => x.s.slot)), labels, dpr);
@@ -156,7 +156,7 @@ function draw(now: number): void {
   header = null;
   const agents = Object.values(state.agents);
   let panelH = 0;
-  if (agents.length) panelH = drawOffice(now, agents, w, dpr);
+  panelH = drawOffice(now, agents, w, dpr); // the empty room is shown too (0 agents)
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   if (!agents.length && hint) drawHint(ctx, w, hint);
   if (permissions.length) {
