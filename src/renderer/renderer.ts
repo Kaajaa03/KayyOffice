@@ -6,7 +6,7 @@ import type { Lang } from '../shared/i18n';
 import { agentDrawables, benchDrawables, freeBenchSpots } from './agents';
 import type { BenchTag, Drawable } from './agents';
 import { benchPlan } from './bench';
-import { CARD_H, CARD_W, armDelay, drawPermissionCard } from './card';
+import { CARD_W, armDelay, cardHeight, drawPermissionCard } from './card';
 import type { Hit } from './card';
 import { ClickGuard } from './clickguard';
 import { footerParts } from './footer';
@@ -130,7 +130,7 @@ function drawLabels(items: Drawable[], tags: BenchTag[], room: Room, dpr: number
 /** The framed office; returns the panel height (the permission card goes below it). */
 function drawOffice(now: number, agents: Agent[], w: number, dpr: number): number {
   const desks = layout.layout(agents);
-  const cardRoom = permissions.length ? CARD_H + 14 : 0;
+  const cardRoom = permissions.length ? cardHeight(permissions[0]) + 14 : 0;
   const maxH = Math.min(MAX_H, Math.floor((window.innerHeight - HEADER_H - FOOTER_H - cardRoom) / P));
   const room = roomLayout(Math.max(0, ...desks.map((d) => d.slot)) + 1, Math.floor((w - 8) / P), maxH);
   const ph = currentPhase(now);
@@ -173,7 +173,7 @@ function draw(now: number): void {
   if (!agents.length && hint) drawHint(ctx, w, hint);
   if (permissions.length) {
     const req = permissions[0];
-    const y = Math.min(panelH + 10, window.innerHeight - CARD_H - 4);
+    const y = Math.min(panelH + 10, window.innerHeight - cardHeight(req) - 4);
     const asker = askerLabel(state.agents[req.agentId], req.agentId, agents, lang);
     hits = drawPermissionCard(ctx, Math.round((w - CARD_W) / 2), y, req, permissions.length - 1, asker, lang, hover);
   }

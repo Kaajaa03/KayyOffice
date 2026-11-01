@@ -192,13 +192,15 @@ export function benchDrawables(c: Ctx, room: Room, plan: BenchPlan, spots: Pt[],
   const e: Env = { c, t: 0, ph, dpr, night: false };
   const items: Drawable[] = [];
   const tags: BenchTag[] = [];
-  const tagAt = (x: number, y: number, name: string, chip: Chip): void =>
-    void tags.push({ cx: x * P, top: y * P - BENCH_TAG_H - 2, w: benchTagWidth(name, chip), name, chip });
+  const tagAt = (x: number, y: number, name: string, chip: Chip, raise = 0): void =>
+    void tags.push({ cx: x * P, top: y * P - BENCH_TAG_H - 2 - raise, w: benchTagWidth(name, chip), name, chip });
   plan.figures.forEach((f, i) => {
     const spot = spots[i];
     const look = lookFor({ id: 'bench|' + f.type } as Agent);
     items.push({ z: spot.y + 16, draw: () => alpha(c, 0.62, () => person(e, look, 'lounge', spot.x, spot.y)) });
-    tagAt(spot.x, spot.y, f.name, f.chip);
+    // neighbours in one row sit closer than a tag is wide: every second tag goes one tag height higher
+    const rank = spots.slice(0, plan.figures.length).filter((s) => s.y === spot.y && s.x < spot.x).length;
+    tagAt(spot.x, spot.y, f.name, f.chip, (rank % 2) * (BENCH_TAG_H + 1));
   });
   if (plan.more) tagAt(room.loungeX + 58, room.benchSpots[0].y, '+' + plan.more, null);
   return { items, tags };

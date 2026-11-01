@@ -13,6 +13,11 @@ export const CARD_H = 100;
 const HIGH_RISK_DELAY_MS = 1500;
 const TEXT_W = CARD_W - 28;
 const BTN = { y: 66, w: 90, h: 26 };
+const OPT = { y: 60, h: 24, step: 28 };
+
+/** A question card stacks its options (full labels); a permission card has a fixed height. */
+export const cardHeight = (req: PermissionRequestInfo): number =>
+  req.options ? OPT.y + req.options.length * OPT.step + 4 : CARD_H;
 
 const TITLE_FONT = `600 12px ${MONO}`;
 const BODY_FONT = `11px ${MONO}`;
@@ -47,7 +52,7 @@ function drawQuestionCard(
   c.strokeStyle = '#74c0fc';
   c.lineWidth = 1.5;
   c.beginPath();
-  c.roundRect(0, 0, CARD_W, CARD_H, 12);
+  c.roundRect(0, 0, CARD_W, cardHeight(req), 12);
   c.fill();
   c.stroke();
   c.textAlign = 'left';
@@ -64,20 +69,18 @@ function drawQuestionCard(
   if (more) { c.fillStyle = '#9ca3af'; c.textAlign = 'right'; c.fillText(more, CARD_W - 14, 20); c.textAlign = 'left'; }
 
   const hits: Hit[] = [];
-  const gap = 6;
-  const w = Math.floor((TEXT_W - gap * (options.length - 1)) / options.length);
   options.forEach((opt, i) => {
-    const bx = 14 + i * (w + gap);
+    const by = OPT.y + i * OPT.step;
     const hot = hover?.id === req.id && hover.choice === i;
     c.fillStyle = hot ? '#74c0fc' : '#74c0fccc';
     c.beginPath();
-    c.roundRect(bx, BTN.y, w, BTN.h, 8);
+    c.roundRect(14, by, TEXT_W, OPT.h, 8);
     c.fill();
     c.fillStyle = '#0b1020';
     c.font = BTN_FONT;
     c.textAlign = 'center';
-    c.fillText(fit(opt, BTN_FONT, w - 10, 1), bx + w / 2, 83);
-    hits.push({ x: x + bx, y: y + BTN.y, w, h: BTN.h, id: req.id, decision: 'choice', choice: i });
+    c.fillText(fit(opt, BTN_FONT, TEXT_W - 12, 1), 14 + TEXT_W / 2, by + 16);
+    hits.push({ x: x + 14, y: y + by, w: TEXT_W, h: OPT.h, id: req.id, decision: 'choice', choice: i });
   });
   c.restore();
   return hits;
