@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.3.2 – 2026-11-01
+- **Frage-Karte:** Optionen stehen untereinander in voller Breite, nichts wird mehr abgeschnitten.
+- **Wartebereich:** Schilder in der Lounge werden gestaffelt, statt sich zu überdecken.
+
 ## 1.3.1 – 2026-10-31
 - **Ungenutzte Chats** (idle) verlieren nach 5 Minuten ihre Figur.
 - **Wartebereich** wird in `roster.json` gespeichert und überlebt einen Neustart.
