@@ -98,7 +98,7 @@ async function main(): Promise<void> {
     hotkey: HOTKEY_LABEL,
     autostartAvailable: app.isPackaged,
     getAutostart: () => app.getLoginItemSettings().openAtLogin,
-    setAutostart: (on) => app.setLoginItemSettings({ openAtLogin: on }),
+    setAutostart: (on) => { app.setLoginItemSettings({ openAtLogin: on }); updateConfig(configDir, { autostart: on }); },
     applyLanguage: (next) => { lang = next; win.webContents.send('language', next); tray.setLang(next); },
     // window bounds first, then the page zoom so layout (CSS px) stays the same
     applyScale: (wanted) => { zoom = resizeOverlay(win, wanted); win.webContents.setZoomFactor(zoom); return zoom; },
@@ -124,9 +124,14 @@ async function main(): Promise<void> {
     win.webContents.send('hint', t(lang, 'hint.start'));
     setTimeout(() => { if (!win.isDestroyed()) win.webContents.send('hint', null); }, HINT_MS);
   });
+  let crashes: number[] = [];
   win.webContents.on('render-process-gone', (_e, details) => {
     appLog('error', `overlay: renderer gone (${details.reason})`);
     resetClickThrough(win);
+    // did-finish-load restores state; limit retries so a crash loop cannot spin
+    const now = Date.now();
+    crashes = crashes.filter((ts) => now - ts < 60_000).concat(now);
+    if (details.reason !== 'clean-exit' && crashes.length <= 3 && !win.isDestroyed()) win.webContents.reload();
   });
   // a second launch (double click) must not look like "nothing happened"
   app.on('second-instance', () => { showOverlay(win); settings.open(lang); });
@@ -138,7 +143,7 @@ async function main(): Promise<void> {
     if (!flags.noCard) void queue.add({ id: 'demo', agentId: flags.demoCount ? `agent${Math.min(3, flags.demoCount)}` : 'reviewer', tool: 'Bash', summary: 'git push --force origin main' });
   } else {
     const server = await startIngest({
-      token: config.token, port, rosterFile, eventLog, office, queue, showOverlay: () => showOverlay(win),
+      token: config.token, reloadToken: () => loadConfig(configDir).token, port, rosterFile, eventLog, office, queue, showOverlay: () => showOverlay(win),
       approvalMode: () => approvalMode,
       onEvent: () => { lastEventAt = Date.now(); },
     });
@@ -148,9 +153,14 @@ async function main(): Promise<void> {
   }
 
   // "just works in every chat": the installed app starts with Windows, switched on once; the settings switch decides afterwards
-  if (app.isPackaged && !config.autostartInit && !flags.perf && !flags.demo && !flags.screenshot) {
-    app.setLoginItemSettings({ openAtLogin: true });
-    updateConfig(configDir, { autostartInit: true });
+  // The Windows entry can vanish (reinstall, cleaner tools): re-create it on every start unless the person switched it off.
+  if (app.isPackaged && !flags.perf && !flags.demo && !flags.screenshot) {
+    if (!config.autostartInit) {
+      app.setLoginItemSettings({ openAtLogin: true });
+      updateConfig(configDir, { autostartInit: true, autostart: true });
+    } else if (config.autostart !== false && !app.getLoginItemSettings().openAtLogin) {
+      app.setLoginItemSettings({ openAtLogin: true });
+    }
   }
 
   if (flags.perf) runPerf(flags.perfSeconds, flags.perf);

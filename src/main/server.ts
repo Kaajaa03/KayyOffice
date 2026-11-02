@@ -6,6 +6,8 @@ import type { AgentEvent, PermissionAnswer, PermissionPayload } from '../shared/
 
 export interface ServerOptions {
   token: string;
+  /** Re-reads the token from disk; tried once when a signature does not match (config changed under a running app). */
+  reloadToken?: () => string;
   port: number;
   onEvent: (e: AgentEvent) => void;
   /** Resolves with the user's decision; aborted when the client disconnects. */
@@ -62,6 +64,7 @@ function parsePermission(raw: unknown): PermissionPayload | null {
 
 export function startServer(opts: ServerOptions): Promise<RunningServer> {
   const nonces = new NonceCache();
+  let token = opts.token;
   // Set once listening. Browsers always send the Host they navigated to, so a rebound DNS name
   // (evil.example -> 127.0.0.1) is refused here before any body is read.
   let allowedHosts: string[] = [];
@@ -74,7 +77,11 @@ export function startServer(opts: ServerOptions): Promise<RunningServer> {
       // Signed request (see auth.ts): the token itself never goes over the wire.
       const bodyText = body.toString('utf8');
       const nonce = req.headers['x-kayy-nonce'];
-      if (!verifyAuth(opts.token, nonce, req.headers['x-kayy-auth'], route, bodyText) || !nonces.useOnce(nonce as string)) {
+      const ok = (): boolean => verifyAuth(token, nonce, req.headers['x-kayy-auth'], route, bodyText);
+      if (!ok() && opts.reloadToken) {
+        try { token = opts.reloadToken(); } catch { /* keep the old token */ }
+      }
+      if (!ok() || !nonces.useOnce(nonce as string)) {
         return void res.writeHead(401).end();
       }
       let parsed: unknown;
@@ -105,7 +112,7 @@ export function startServer(opts: ServerOptions): Promise<RunningServer> {
         const proofOf = typeof out === 'object' ? `choice:${out.choice}` : out;
         res.writeHead(200, {
           'content-type': 'application/json',
-          'x-kayy-proof': responseProof(opts.token, nonce as string, proofOf),
+          'x-kayy-proof': responseProof(token,nonce as string, proofOf),
         }).end(JSON.stringify(typeof out === 'object' ? { decision: 'choice', choice: out.choice } : { decision: out }));
       };
       if (!opts.onPermission) return reply('ask');

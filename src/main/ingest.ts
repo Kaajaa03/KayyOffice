@@ -11,6 +11,7 @@ import { startServer } from './server';
 interface IngestDeps {
   rosterFile: string;
   token: string;
+  reloadToken?: () => string;
   port: number;
   eventLog: EventLog;
   office: Office;
@@ -24,6 +25,7 @@ interface IngestDeps {
 export function startIngest(d: IngestDeps) {
   return startServer({
     token: d.token,
+    reloadToken: d.reloadToken,
     port: d.port,
     onEvent: (e) => {
       d.onEvent();

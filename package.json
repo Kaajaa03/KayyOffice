@@ -6,14 +6,15 @@
   "main": "dist/main.js",
   "scripts": {
     "build": "node esbuild.config.mjs",
-    "start": "npm run build && electron .",
+    "start": "npm run sync-mod && npm run build && electron .",
     "test": "vitest run",
     "check": "tsc --noEmit && vitest run",
     "mock": "tsx tools/mock-events.ts",
     "icon": "tsx tools/make-icon.ts",
     "perf": "tsx tools/perf-check.ts",
     "dist": "npm run build && electron-builder",
-    "setup": "node scripts/setup.mjs"
+    "setup": "node scripts/setup.mjs",
+    "sync-mod": "node scripts/sync-mod.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",

@@ -217,3 +217,13 @@ describe('server Host check (DNS rebinding)', () => {
     expect(await rawPost(s.port, `127.0.0.1:${s.port}`, body)).toBe(204);
   });
 });
+
+describe('stale token', () => {
+  it('accepts a request signed with the new token after reloadToken, rejects a wrong one', async () => {
+    const NEW = 'new'.repeat(22);
+    const s = await startServer({ token: TOKEN, reloadToken: () => NEW, port: 48190, onEvent: () => {} });
+    closers.push(s.close);
+    expect((await post(48190, JSON.stringify(good), { token: NEW })).status).toBe(200);
+    expect((await post(48190, JSON.stringify(good), { token: 'x'.repeat(66) })).status).toBe(401);
+  });
+});

@@ -48,6 +48,7 @@ const de = {
   // tray
   'tray.toggle': 'Anzeigen / Verstecken ({hotkey})',
   'tray.demo': 'Demo zeigen (15 s)',
+  'tray.reload': 'Neu laden (bei leerem Büro)',
   'devlog.title': 'Dev-Log {date}',
   'devlog.none': '_Keine Agent-Aktivität._',
   'devlog.line': '{n} Tool-Calls, aktiv {time}',
@@ -168,6 +169,7 @@ const en: Record<Key, string> = {
   'hint.start': 'Kayy Office is running · waiting for agents · Ctrl+Alt+O',
   'tray.toggle': 'Show / hide ({hotkey})',
   'tray.demo': 'Show demo (15 s)',
+  'tray.reload': 'Reload (if the office is empty)',
   'devlog.title': 'Dev log {date}',
   'devlog.none': '_No agent activity._',
   'devlog.line': '{n} tool calls, active {time}',

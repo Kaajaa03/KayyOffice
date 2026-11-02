@@ -11,6 +11,8 @@ interface Config {
   welcomeShown?: boolean;
   /** Set once the installed app switched "start with Windows" on by default (the user's later choice stays). */
   autostartInit?: boolean;
+  /** The person's choice for "start with Windows"; absent = on. Re-applied at every start. */
+  autostart?: boolean;
   /** 'all' | 'risky' (default) | 'off': which permission requests get an overlay card. */
   approvals?: string;
   /** 'de' | 'en'; absent = follow the system language. */

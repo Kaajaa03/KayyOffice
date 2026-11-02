@@ -35,6 +35,7 @@ export function createTray(deps: TrayDeps, initialLang: Lang) {
       { label: t(lang, 'tray.toggle', { hotkey: HOTKEY_LABEL }), click: deps.toggle },
       { label: t(lang, 'tray.settings'), click: deps.openSettings },
       { label: t(lang, 'tray.demo'), click: deps.demo },
+      { label: t(lang, 'tray.reload'), click: () => { app.relaunch(); app.exit(0); } },
       { type: 'separator' },
       { label: t(lang, 'tray.quit'), click: () => app.quit() },
     ]));
