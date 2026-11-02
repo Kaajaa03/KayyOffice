@@ -223,7 +223,7 @@ describe('stale token', () => {
     const NEW = 'new'.repeat(22);
     const s = await startServer({ token: TOKEN, reloadToken: () => NEW, port: 48190, onEvent: () => {} });
     closers.push(s.close);
-    expect((await post(48190, JSON.stringify(good), { token: NEW })).status).toBe(200);
+    expect((await post(48190, JSON.stringify(good), { token: NEW })).status).toBe(204);
     expect((await post(48190, JSON.stringify(good), { token: 'x'.repeat(66) })).status).toBe(401);
   });
 });
