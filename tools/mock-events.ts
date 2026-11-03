@@ -6,7 +6,7 @@ import { requestAuth } from '../src/main/auth';
 import { join } from 'node:path';
 import type { AgentEvent, EventName } from '../src/shared/types';
 
-const dir = process.env.KAYY_CONFIG_DIR || join(process.env.APPDATA ?? '', 'KayyOffice');
+const dir = process.env.KAYY_CONFIG_DIR || join(process.env.USERPROFILE ?? '', '.kayy-office');
 const cfg = JSON.parse(readFileSync(join(dir, 'config.json'), 'utf8')) as { token: string; port: number };
 const seconds = Number(process.env.MOCK_SECONDS ?? 60);
 

@@ -7,7 +7,7 @@ import { parseApprovalMode } from './approvals';
 import type { ApprovalMode } from './approvals';
 import { resetClickThrough, resetClickThroughWhenIdle } from './clickthrough';
 import { loadRoster } from './rosterstore';
-import { loadConfig, updateConfig } from './config';
+import { defaultConfigDir, loadConfig, migrateLegacyConfig, updateConfig } from './config';
 import { PermissionQueue } from './control';
 import { runPerf, screenshotAndQuit } from './devtools';
 import { appLog, guardProcess, initDiag } from './diag';
@@ -50,7 +50,8 @@ if (process.platform === 'linux') app.commandLine.appendSwitch('enable-transpare
 async function main(): Promise<void> {
   if (!app.requestSingleInstanceLock()) { app.quit(); return; }
   await app.whenReady();
-  const configDir = flags.configDir ?? join(app.getPath('appData'), 'KayyOffice');
+  const configDir = flags.configDir ?? defaultConfigDir();
+  if (!flags.configDir) migrateLegacyConfig(configDir, join(app.getPath('appData'), 'KayyOffice'));
   initDiag(configDir);
   const config = loadConfig(configDir);
   // runtime settings, changed from the settings window (--lang is a debug override and is not saved)

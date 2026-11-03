@@ -227,3 +227,21 @@ describe('stale token', () => {
     expect((await post(48190, JSON.stringify(good), { token: 'x'.repeat(66) })).status).toBe(401);
   });
 });
+
+describe('shared config folder', () => {
+  it('lives in the home folder and takes over the old AppData files once', async () => {
+    const { defaultConfigDir, migrateLegacyConfig } = await import('../src/main/config');
+    expect(defaultConfigDir('C:\Users\me')).toBe(join('C:\Users\me', '.kayy-office'));
+    const legacy = mkdtempSync(join(tmpdir(), 'kayy-old-'));
+    const fresh = join(mkdtempSync(join(tmpdir(), 'kayy-new-')), 'cfg');
+    const old = loadConfig(legacy);
+    updateConfig(legacy, { scale: 1.33 });
+    migrateLegacyConfig(fresh, legacy);
+    const moved = loadConfig(fresh);
+    expect(moved.token).toBe(old.token);
+    expect(moved.scale).toBe(1.33);
+    updateConfig(fresh, { scale: 2 });
+    migrateLegacyConfig(fresh, legacy); // never overwrites
+    expect(loadConfig(fresh).scale).toBe(2);
+  });
+});

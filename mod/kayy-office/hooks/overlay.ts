@@ -75,20 +75,38 @@ export const verifyChoice = (token: string, nonce: string, reply: { headers: Rec
   return equalsConstantTime(proof, hmacHex(token, `res|${nonce}|choice:${index}`)) ? index : undefined
 }
 
-/** Reads `%APPDATA%\KayyOffice\config.json` (or `$KAYY_CONFIG_DIR/config.json`, as the hook does). */
-async function loadConfig($: EngineInterface, office: Office) {
-  if (office.config !== undefined) return office.config
-  const dir = (await $.env.get('KAYY_CONFIG_DIR')) || (await appDataDir($))
-  if (!dir) throw new Error('no config dir')
-  const config = parseConfig(await $.fs.read(`${dir}/config.json`))
-  if (config === undefined) throw new Error('bad config')
-  office.config = config
-  return config
+/**
+ * Finds the overlay's config.json. Claude Desktop is a Store (MSIX) app: it sees %APPDATA% redirected into its
+ * package, so the app (started by Windows) and this mod end up with two different files and tokens. The shared
+ * file therefore lives outside AppData: `$KAYY_CONFIG_DIR`, else `%USERPROFILE%.kayy-office`, else the old `%APPDATA%KayyOffice`.
+ */
+async function configDirs($: EngineInterface): Promise<string[]> {
+  const dirs: string[] = []
+  const explicit = await $.env.get('KAYY_CONFIG_DIR')
+  if (explicit) dirs.push(explicit)
+  const home = await $.env.get('USERPROFILE')
+  if (home) dirs.push(`${home}/.kayy-office`)
+  const appData = await $.env.get('APPDATA')
+  if (appData) dirs.push(`${appData}/KayyOffice`)
+  return dirs
 }
 
-async function appDataDir($: EngineInterface) {
-  const appData = await $.env.get('APPDATA')
-  return appData ? `${appData}/KayyOffice` : undefined
+async function loadConfig($: EngineInterface, office: Office) {
+  if (office.config !== undefined) return office.config
+  for (const dir of await configDirs($)) {
+    let text: unknown
+    try {
+      text = await $.fs.read(`${dir}/config.json`)
+    } catch {
+      continue
+    }
+    const config = parseConfig(text)
+    if (config !== undefined) {
+      office.config = config
+      return config
+    }
+  }
+  throw new Error('no config')
 }
 
 /** Marks the overlay as gone for PAUSE_MS and forgets the config (the app may come back on a new port). */

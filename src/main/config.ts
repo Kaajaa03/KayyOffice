@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { copyFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { appLog } from './diag';
 import { writeFileAtomic } from './fsutil';
@@ -57,4 +58,23 @@ export function loadConfig(dir: string): Config {
 export function updateConfig(dir: string, patch: Partial<Config>): void {
   const c = loadConfig(dir);
   writeFileAtomic(join(dir, 'config.json'), JSON.stringify({ ...c, ...patch }, null, 2));
+}
+
+/**
+ * The shared config lives in the home folder, NOT in %APPDATA%: Claude Desktop (a Store app) sees AppData
+ * redirected into its package, so the app and the Claude mod would read two different config.json files.
+ */
+export const defaultConfigDir = (home: string = homedir()): string => join(home, '.kayy-office');
+
+/** First run in the new folder: take over settings, roles and roster from the old AppData folder. */
+export function migrateLegacyConfig(dir: string, legacyDir: string): void {
+  try {
+    if (existsSync(join(dir, 'config.json')) || !existsSync(join(legacyDir, 'config.json'))) return;
+    mkdirSync(dir, { recursive: true });
+    for (const name of ['config.json', 'roles.json', 'roster.json']) {
+      if (existsSync(join(legacyDir, name))) copyFileSync(join(legacyDir, name), join(dir, name));
+    }
+  } catch (e) {
+    appLog('warn', 'config: migration from the old folder failed', e);
+  }
 }

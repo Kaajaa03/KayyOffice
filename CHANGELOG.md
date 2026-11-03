@@ -61,3 +61,7 @@ Claude-Mod `kayy-office` (Router, Approver, Pane), signiertes Protokoll (Token n
 
 ## 0.1.0 – 2026-10-29
 Erste Fassung: Hooks → lokaler Server → Overlay, Freigaben im Overlay, Rollen, Dev-Log.
+
+## 1.3.3
+- Fix: empty office after a reboot. Claude Desktop is a Store app and sees `%APPDATA%` redirected into its package, so the app (started by Windows) and the mod read two different `config.json` files with different tokens (every event rejected with 401). The shared config now lives in `%USERPROFILE%\.kayy-office` (old AppData files are taken over once); the mod looks there first.
+- The app reloads the token from disk on a signature mismatch, re-creates the Windows autostart entry on every start, logs why a request was rejected, and has a tray entry "Reload".

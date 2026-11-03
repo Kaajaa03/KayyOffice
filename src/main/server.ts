@@ -1,4 +1,6 @@
 import http from 'node:http';
+import { createHash } from 'node:crypto';
+import { appLog } from './diag';
 import { NonceCache, responseProof, verifyAuth } from './auth';
 import type { AddressInfo } from 'node:net';
 import { MAX_BODY_BYTES, cleanLabel, parseEvent, str } from './validate';
@@ -81,7 +83,9 @@ export function startServer(opts: ServerOptions): Promise<RunningServer> {
       if (!ok() && opts.reloadToken) {
         try { token = opts.reloadToken(); } catch { /* keep the old token */ }
       }
-      if (!ok() || !nonces.useOnce(nonce as string)) {
+      const signed = ok();
+      if (!signed || !nonces.useOnce(nonce as string)) {
+        appLog('warn', 'server: request rejected (' + (signed ? 'replayed nonce' : 'bad signature') + ') route=' + route + ' token=' + createHash('sha256').update(token).digest('hex').slice(0, 8));
         return void res.writeHead(401).end();
       }
       let parsed: unknown;
