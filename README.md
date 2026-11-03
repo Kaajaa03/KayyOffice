@@ -45,7 +45,7 @@ cd KayyOffice
 npm run setup      # installiert, baut, richtet den Claude-Mod ein und startet die App
 ```
 
-Danach eine **neue** Claude-Sitzung öffnen und `/office` tippen. Entfernen: `claude plugin uninstall kayy-office@kayy`.
+Danach Claude **komplett neu starten** (nicht nur neue Sitzung) und `/office` tippen. Nach einem Update des Mods (`plugin.json`-Version erhöht): `npm run sync-mod` und Claude neu starten. Entfernen: `claude plugin uninstall kayy-office@kayy`.
 
 > **Plattformen:** Windows 10/11 ist der Hauptweg. Auf **macOS und Linux** läuft bei jedem Push in GitHub Actions automatisch: Typecheck, alle Tests, Build, Mod-Tests, das Setup-Skript und ein Start der App mit Demo-Screenshot. **Nicht automatisch geprüft** (braucht einen echten Desktop): transparentes Klick-durch-Fenster, Tray-Icon, Autostart und der Hotkey. Unter Linux braucht das transparente Fenster einen Compositor und das Tray-Icon unter GNOME die AppIndicator-Erweiterung. Ein fertiges Installer-Paket (`npm run dist`) gibt es nur für Windows.
 
@@ -60,7 +60,9 @@ Beim ersten Start öffnen sich die **Einstellungen** mit kurzer Einführung (Spr
 | Titelleiste ziehen | Büro verschieben (Position wird gemerkt) |
 | **Strg + Mausrad** auf der Titelleiste | Größe: 67 / 100 / 133 / 167 / 200 % |
 
-Installer: `npm run dist` erzeugt `release/Kayy Office Setup <Version>.exe` und eine Portable-Version. Die installierte App startet ab dem ersten Start mit Windows (abschaltbar).
+Installer: `npm run dist` erzeugt `release/Kayy Office Setup <Version>.exe` und eine Portable-Version. Die installierte App startet mit Windows (abschaltbar; der Eintrag wird bei jedem Start erneuert). Bei leerem Büro: Tray → „Neu laden“, sonst `%USERPROFILE%.kayy-officeapp.log` ansehen.
+
+> **Claude Desktop (Store-Version):** Windows leitet `%APPDATA%` für diese App und den Mod um, daher liegt die gemeinsame Config bewusst in `%USERPROFILE%.kayy-office` (alte Einstellungen werden einmal übernommen).
 
 ## 🔌 Claude-Mod anschließen
 
