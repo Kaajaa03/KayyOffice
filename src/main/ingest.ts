@@ -44,7 +44,7 @@ export function startIngest(d: IngestDeps) {
         cwd: d.office.agent(p.agentId)?.cwd ?? '', message: `permission: ${p.tool}`,
       });
       d.showOverlay();
-      return d.queue.add({ id: randomUUID(), agentId: p.agentId, tool: p.tool, summary: p.summary, options: p.options }, signal);
+      return d.queue.add({ id: randomUUID(), agentId: p.agentId, tool: p.tool, summary: p.summary, options: p.options, descriptions: p.descriptions }, signal);
     },
   });
 }

@@ -13,11 +13,40 @@ export const CARD_H = 100;
 const HIGH_RISK_DELAY_MS = 1500;
 const TEXT_W = CARD_W - 28;
 const BTN = { y: 66, w: 90, h: 26 };
-const OPT = { y: 60, h: 24, step: 28 };
+const OPT = { y: 60, h: 24, step: 28, descLine: 12, descPad: 3, descMaxLines: 3 };
+const DESC_W = TEXT_W - 16;
+const DESC_FONT = `10px ${MONO}`;
+
+/** Word-wraps `text` into at most `maxLines` lines of `max` px; the last line ends with an ellipsis if cut. */
+export function wrapLines(text: string, font: string, max: number, maxLines: number): string[] {
+  const lines: string[] = [];
+  let rest = text.trim();
+  while (rest && lines.length < maxLines) {
+    if (measure(rest, font) <= max) { lines.push(rest); rest = ''; break; }
+    let cut = rest.length;
+    while (cut > 1 && measure(rest.slice(0, cut), font) > max) cut--;
+    const space = rest.lastIndexOf(' ', cut);
+    if (space > cut / 2) cut = space;
+    lines.push(rest.slice(0, cut).trimEnd());
+    rest = rest.slice(cut).trimStart();
+  }
+  if (rest) lines[lines.length - 1] = fit(lines[lines.length - 1] + ' ' + rest, font, max, 1);
+  return lines;
+}
+
+const descLines = (req: PermissionRequestInfo, i: number): string[] => {
+  const d = req.descriptions?.[i];
+  return d ? wrapLines(d, DESC_FONT, DESC_W, OPT.descMaxLines) : [];
+};
+
+const descHeight = (lines: string[]): number => (lines.length ? lines.length * OPT.descLine + OPT.descPad : 0);
 
 /** A question card stacks its options (full labels); a permission card has a fixed height. */
+export const optionRowHeight = (req: PermissionRequestInfo, i: number): number =>
+  OPT.step + descHeight(descLines(req, i));
+
 export const cardHeight = (req: PermissionRequestInfo): number =>
-  req.options ? OPT.y + req.options.length * OPT.step + 4 : CARD_H;
+  req.options ? OPT.y + req.options.reduce((h, _, i) => h + optionRowHeight(req, i), 0) + 4 : CARD_H;
 
 const TITLE_FONT = `600 12px ${MONO}`;
 const BODY_FONT = `11px ${MONO}`;
@@ -69,18 +98,23 @@ function drawQuestionCard(
   if (more) { c.fillStyle = '#9ca3af'; c.textAlign = 'right'; c.fillText(more, CARD_W - 14, 20); c.textAlign = 'left'; }
 
   const hits: Hit[] = [];
+  let by = OPT.y;
   options.forEach((opt, i) => {
-    const by = OPT.y + i * OPT.step;
+    const dl = descLines(req, i);
+    const h = OPT.h + descHeight(dl);
     const hot = hover?.id === req.id && hover.choice === i;
     c.fillStyle = hot ? '#74c0fc' : '#74c0fccc';
     c.beginPath();
-    c.roundRect(14, by, TEXT_W, OPT.h, 8);
+    c.roundRect(14, by, TEXT_W, h, 8);
     c.fill();
     c.fillStyle = '#0b1020';
     c.font = BTN_FONT;
     c.textAlign = 'center';
     c.fillText(fit(opt, BTN_FONT, TEXT_W - 12, 1), 14 + TEXT_W / 2, by + 16);
-    hits.push({ x: x + 14, y: y + by, w: TEXT_W, h: OPT.h, id: req.id, decision: 'choice', choice: i });
+    c.font = DESC_FONT;
+    dl.forEach((line, n) => c.fillText(line, 14 + TEXT_W / 2, by + 29 + n * OPT.descLine));
+    hits.push({ x: x + 14, y: y + by, w: TEXT_W, h, id: req.id, decision: 'choice', choice: i });
+    by += optionRowHeight(req, i);
   });
   c.restore();
   return hits;

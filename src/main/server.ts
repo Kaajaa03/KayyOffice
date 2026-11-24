@@ -25,6 +25,7 @@ interface RunningServer {
 const HOST = '127.0.0.1';
 const MAX_PORT_TRIES = 20;
 const MAX_OPTIONS = 4;
+const MAX_DESCRIPTION = 300;
 const BODY_TIMEOUT_MS = 10_000;
 
 /** Collects a size-limited body; answers 413 itself when the limit is exceeded. */
@@ -61,7 +62,11 @@ function parsePermission(raw: unknown): PermissionPayload | null {
   if (tool !== 'AskUserQuestion' || !Array.isArray(r.options) || r.options.length < 2 || r.options.length > MAX_OPTIONS) return null;
   const options = r.options.map((o) => cleanLabel(o, 80));
   if (!summary.trim() || options.some((o) => o === undefined)) return null;
-  return { sessionId, agentId, tool, summary: cleanLabel(summary, 300)!, options: options as string[] };
+  const base = { sessionId, agentId, tool, summary: cleanLabel(summary, 300)!, options: options as string[] };
+  // Optional descriptions, parallel to the options; ignored unless one per option and at least one non-empty.
+  if (!Array.isArray(r.descriptions) || r.descriptions.length !== options.length) return base;
+  const descriptions = r.descriptions.map((d) => cleanLabel(d, MAX_DESCRIPTION) ?? '');
+  return descriptions.some(Boolean) ? { ...base, descriptions } : base;
 }
 
 export function startServer(opts: ServerOptions): Promise<RunningServer> {

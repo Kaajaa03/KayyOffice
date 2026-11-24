@@ -8,7 +8,7 @@ export const PAUSE_MS = 30_000
 /** Events waiting behind a slow overlay beyond this are dropped, never queued without end. */
 const MAX_QUEUED = 50
 /** A question card waits this long for a click (a hair over the approver's 20 s), then the normal dialog takes over. */
-export const QUESTION_TIMEOUT_MS = 21_000
+export const QUESTION_TIMEOUT_MS = 121_000
 
 export type Decision = 'allow' | 'deny' | 'ask'
 export type PermissionPayload = { sessionId: string; agentId: string; tool: string; summary: string; options?: string[] }

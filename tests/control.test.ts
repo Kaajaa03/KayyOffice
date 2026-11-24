@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { PermissionQueue, PERMISSION_TIMEOUT_MS } from '../src/main/control';
+import { PermissionQueue, PERMISSION_TIMEOUT_MS, QUESTION_TIMEOUT_MS } from '../src/main/control';
 
 const req = (id: string) => ({ id, agentId: 'a', tool: 'Bash', summary: 'ls' });
 afterEach(() => vi.useRealTimers());
@@ -21,6 +21,7 @@ describe('PermissionQueue', () => {
     await expect(p).resolves.toBe('ask');
     expect(q.pending()).toHaveLength(0);
   });
+it('keeps a question card much longer than an allow/deny card', async () => {    vi.useFakeTimers();    const q = new PermissionQueue();    const perm = q.add(req('p'));    const quest = q.add({ ...req('q'), options: ['a', 'b'] });    vi.advanceTimersByTime(PERMISSION_TIMEOUT_MS);    await expect(perm).resolves.toBe('ask');    expect(q.pending().map((p) => p.id)).toEqual(['q']);    vi.advanceTimersByTime(QUESTION_TIMEOUT_MS - PERMISSION_TIMEOUT_MS);    await expect(quest).resolves.toBe('ask');  });
   it("dispose() resolves all waiting requests with 'ask' (app shutdown)", async () => {
     const q = new PermissionQueue();
     const a = q.add(req('1'));

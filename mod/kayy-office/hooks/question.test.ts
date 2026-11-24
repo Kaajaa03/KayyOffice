@@ -55,7 +55,7 @@ test('questions are asked in turn, each as a card with its own options', async (
   const answers = await askQuestions(async p => (seen.push(p), 1), askableOf(INPUT)!, WHO)
   expect(answers).toEqual({ 'Which library?': 'luxon', 'Which style?': 'B' })
   expect(seen).toEqual([
-    { ...WHO, tool: 'AskUserQuestion', summary: 'Which library?', options: ['dayjs', 'luxon'] },
+    { ...WHO, tool: 'AskUserQuestion', summary: 'Which library?', options: ['dayjs', 'luxon'], descriptions: ['small', 'big'] },
     { ...WHO, tool: 'AskUserQuestion', summary: 'Which style?', options: ['A', 'B', 'C'] },
   ])
 })

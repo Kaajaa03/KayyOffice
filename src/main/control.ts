@@ -2,6 +2,8 @@ import type { PermissionAnswer, PermissionRequestInfo } from '../shared/types';
 
 /** After this long without an answer the mod falls back to Claude Code's normal prompt. */
 export const PERMISSION_TIMEOUT_MS = 20000;
+/** A question has to be read and thought about: it stays much longer than an allow/deny card. */
+export const QUESTION_TIMEOUT_MS = 120000;
 
 interface Waiting {
   info: PermissionRequestInfo;
@@ -11,10 +13,12 @@ interface Waiting {
 export class PermissionQueue {
   private items = new Map<string, Waiting>();
   private timeoutMs: number;
+  private questionMs: number;
   private onChange?: () => void;
 
-  constructor(opts: { timeoutMs?: number; onChange?: () => void } = {}) {
+  constructor(opts: { timeoutMs?: number; questionMs?: number; onChange?: () => void } = {}) {
     this.timeoutMs = opts.timeoutMs ?? PERMISSION_TIMEOUT_MS;
+    this.questionMs = opts.questionMs ?? QUESTION_TIMEOUT_MS;
     this.onChange = opts.onChange;
   }
 
@@ -29,7 +33,7 @@ export class PermissionQueue {
         this.onChange?.();
       };
       const onAbort = () => settle('ask');
-      timer = setTimeout(() => settle('ask'), this.timeoutMs);
+      timer = setTimeout(() => settle('ask'), req.options ? this.questionMs : this.timeoutMs);
       signal?.addEventListener('abort', onAbort);
       this.items.set(req.id, { info: { ...req, ts: Date.now() }, settle });
       this.onChange?.();

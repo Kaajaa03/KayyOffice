@@ -147,6 +147,20 @@ describe('server /permission question cards', () => {
     expect(res.headers.get('x-kayy-proof')).not.toBe(responseProof(TOKEN, nonce, 'allow'));
     expect(seen).toEqual([{ sessionId: 's', agentId: 'a', tool: 'AskUserQuestion', summary: 'Which?', options: ['A', 'B'] }]);
   });
+  it('passes cleaned, shortened option descriptions on (parallel to options), drops bad ones', async () => {
+    const seen: any[] = [];
+    const s = await startServer({ token: TOKEN, port: 48155, onEvent: () => {}, onPermission: async (p) => { seen.push(p); return 'ask'; } });
+    closers.push(s.close);
+    await signedPost(s.port, '/permission', q({ descriptions: ['small' + String.fromCharCode(7) + ' and' + String.fromCharCode(10) + 'fast', 'x'.repeat(500)] }));
+    expect(seen[0].options).toEqual(['A', 'B']);
+    expect(seen[0].descriptions[0]).toBe('small  and fast');
+    expect(seen[0].descriptions[1]).toHaveLength(300);
+    seen.length = 0;
+    await signedPost(s.port, '/permission', q({ descriptions: ['only one'] }));
+    await signedPost(s.port, '/permission', q({ descriptions: ['', ''] }));
+    await signedPost(s.port, '/permission', q({ descriptions: 'nope' }));
+    expect(seen.map((p) => p.descriptions)).toEqual([undefined, undefined, undefined]);
+  });
   it('an index outside the options, or a choice for a plain request, turns into ask', async () => {
     const s = await startServer({ token: TOKEN, port: 48145, onEvent: () => {}, onPermission: async () => ({ choice: 5 }) });
     closers.push(s.close);

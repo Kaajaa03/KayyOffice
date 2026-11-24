@@ -3,10 +3,12 @@
 // taken from the model's own question, so a forged reply can pick an option but never invent one.
 export const QUESTION_TOOL = 'AskUserQuestion'
 
-export type Question = { question: string; options: { label: string }[] }
-export type QuestionPayload = { sessionId: string; agentId: string; tool: typeof QUESTION_TOOL; summary: string; options: string[] }
+export type Question = { question: string; options: { label: string; description?: string }[] }
+export type QuestionPayload = { sessionId: string; agentId: string; tool: typeof QUESTION_TOOL; summary: string; options: string[]; descriptions?: string[] }
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null
+
+const descriptionOf = (o: unknown): string | undefined => (isObject(o) && typeof o.description === 'string' && o.description.trim() !== '' ? o.description : undefined)
 
 /**
  * The questions when every one can be answered by a single click: 1-4 plain choice questions,
@@ -25,7 +27,7 @@ export const askableOf = (input: unknown): Question[] | undefined => {
     const labels = options.map(o => (isObject(o) ? o.label : undefined))
     if (!labels.every((l): l is string => typeof l === 'string' && l.trim() !== '')) return undefined
     if (new Set(labels).size !== labels.length) return undefined
-    out.push({ question: q.question, options: labels.map(label => ({ label })) })
+    out.push({ question: q.question, options: labels.map((label, i) => ({ label, description: descriptionOf(options[i]) })) })
   }
   if (new Set(out.map(q => q.question)).size !== out.length) return undefined
   return out
@@ -70,7 +72,11 @@ export async function askQuestions(
 ): Promise<Record<string, string> | undefined> {
   const picks: number[] = []
   for (const q of questions) {
-    const pick = await ask({ ...who, tool: QUESTION_TOOL, summary: q.question.slice(0, 300), options: q.options.map(o => o.label) })
+    const descriptions = q.options.map(o => o.description ?? '')
+    const pick = await ask({
+      ...who, tool: QUESTION_TOOL, summary: q.question.slice(0, 300), options: q.options.map(o => o.label),
+      ...(descriptions.some(Boolean) ? { descriptions } : {}),
+    })
     if (pick === undefined) return undefined
     picks.push(pick)
   }

@@ -111,6 +111,8 @@ export interface PermissionPayload {
   summary: string;
   /** AskUserQuestion only: the option labels of the one question in `summary` (2-4). */
   options?: string[];
+  /** Optional short text per option (same length as `options`, '' = none). */
+  descriptions?: string[];
 }
 
 export interface PermissionRequestInfo {
@@ -119,6 +121,7 @@ export interface PermissionRequestInfo {
   tool: string;
   summary: string;
   options?: string[];
+  descriptions?: string[];
   ts: number;
 }
 
