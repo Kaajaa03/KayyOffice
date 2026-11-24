@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { mkdtempSync, readFileSync, existsSync, readdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -118,5 +118,29 @@ describe('log retention', () => {
     expect(pruneLogs(dir, '2026-10-30', 30)).toEqual(['2026-09-29.jsonl']);
     expect(readdirSync(dir).sort()).toEqual(names.filter((n) => n !== '2026-09-29.jsonl').sort());
     expect(pruneLogs(join(dir, 'nope'), '2026-10-29', 30)).toEqual([]);
+  });
+});
+
+describe('EventLog.prune (once per day)', () => {
+  afterEach(() => vi.useRealTimers());
+  it('prunes on first call, not again the same day, and again after midnight on the next flush', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 9, 30, 12, 0, 0));
+    const dir = mkdtempSync(join(tmpdir(), 'kayy-prune-day-'));
+    writeFileSync(join(dir, '2026-09-01.jsonl'), '{}');
+    const log = new EventLog(dir);
+    expect(log.prune()).toEqual(['2026-09-01.jsonl']);
+    writeFileSync(join(dir, '2026-09-02.jsonl'), '{}');
+    log.append(ev({ ts: Date.now() }));
+    log.flush(); // same day: no second scan
+    expect(existsSync(join(dir, '2026-09-02.jsonl'))).toBe(true);
+    vi.setSystemTime(new Date(2026, 9, 31, 0, 5, 0));
+    log.append(ev({ ts: Date.now() }));
+    log.flush(); // next day: expired file goes
+    expect(existsSync(join(dir, '2026-09-02.jsonl'))).toBe(false);
+    expect(existsSync(join(dir, '2026-10-31.jsonl'))).toBe(true);
+  });
+  it('does nothing without a dir', () => {
+    expect(new EventLog(null).prune()).toEqual([]);
   });
 });

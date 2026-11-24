@@ -4,7 +4,7 @@ import type { Lang } from '../shared/i18n';
 import type { PermissionRequestInfo } from '../shared/types';
 import { riskOf } from '../shared/risk';
 import { ARM_DELAY_MS } from './clickguard';
-import { MONO, fit, measure } from './text';
+import { MONO, fit, largestFit, measure } from './text';
 
 export interface Hit { x: number; y: number; w: number; h: number; id: string; decision: 'allow' | 'deny' | 'choice'; choice?: number }
 
@@ -23,8 +23,7 @@ export function wrapLines(text: string, font: string, max: number, maxLines: num
   let rest = text.trim();
   while (rest && lines.length < maxLines) {
     if (measure(rest, font) <= max) { lines.push(rest); rest = ''; break; }
-    let cut = rest.length;
-    while (cut > 1 && measure(rest.slice(0, cut), font) > max) cut--;
+    let cut = largestFit(1, rest.length, (n) => measure(rest.slice(0, n), font) <= max);
     const space = rest.lastIndexOf(' ', cut);
     if (space > cut / 2) cut = space;
     lines.push(rest.slice(0, cut).trimEnd());
@@ -62,8 +61,7 @@ export function armDelay(req: PermissionRequestInfo): number {
 /** Splits `text` into at most two lines that fit `max` px (words first, the second line is cut with an ellipsis). */
 function twoLines(text: string, font: string, max: number): [string, string] {
   if (measure(text, font) <= max) return [text, ''];
-  let cut = text.length;
-  while (cut > 1 && measure(text.slice(0, cut), font) > max) cut--;
+  let cut = largestFit(1, text.length, (n) => measure(text.slice(0, n), font) <= max);
   const space = text.lastIndexOf(' ', cut);
   if (space > cut / 2) cut = space;
   return [text.slice(0, cut).trimEnd(), fit(text.slice(cut).trimStart(), font, max, 1)];

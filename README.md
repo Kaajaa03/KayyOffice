@@ -255,3 +255,7 @@ claude plugin test mod/kayy-office   # Mod-Tests
 ## 🗺️ Roadmap
 
 Weitere Tools (Codex, Cursor) als Adapter, Tauri-Portierung für noch weniger RAM. Bewusst nicht geplant: Chat-zu-Chat-Nachrichten (Endlos-Ping-Pong-Risiko), Telemetrie, Auto-Update.
+
+## 📄 Lizenz
+
+MIT, siehe [LICENSE](LICENSE).

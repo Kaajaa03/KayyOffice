@@ -26,6 +26,7 @@ export class EventLog {
   private open = new Map<string, number>(); // agentId -> ts of unmatched PreToolUse
   private buffer = new Map<string, string[]>(); // date -> JSONL lines
   private timer: ReturnType<typeof setTimeout> | null = null;
+  private prunedOn = ''; // local date of the last prune: at most once per day
 
   constructor(private dir: string | null) {}
 
@@ -54,6 +55,15 @@ export class EventLog {
       appLog('warn', 'log: could not write event log', e); // a full disk must not crash the overlay
     }
     this.buffer.clear();
+    this.prune(); // long-running app: expiry must not wait for the next start
+  }
+
+  /** Deletes expired day files, at most once per local day (start and the next write after midnight). */
+  prune(now = Date.now()): string[] {
+    const today = localDate(now);
+    if (!this.dir || today === this.prunedOn) return [];
+    this.prunedOn = today;
+    return pruneLogs(this.dir, today);
   }
 
   day(date: string): DaySummary {

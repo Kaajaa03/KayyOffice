@@ -4,7 +4,7 @@ import { QUESTION_TOOL, askQuestions, askableOf, resultOf } from './question'
 import { PANE_ID, approve, ioFor, shouldForward, type CheckEvent } from './approver'
 import { errorOf, fileOf, makeEvent, type EventName } from './mapping'
 import { askQuestion, sendEvent } from './overlay'
-import { hasTodoList, sameProgress, todoProgress, type Progress } from './progress'
+import { hasTodoList, sameProgress, taskProgress, todoProgress, type Progress, type TaskRec } from './progress'
 import { renderPane } from './pane'
 import { autopilotCheck } from './autopilot'
 import { withOrchestrator } from './orchestrator'
@@ -156,16 +156,24 @@ async function warnRouterOnce($: EngineInterface) {
 }
 
 /**
- * TodoWrite progress to send for this call: a changed one, `null` to clear a bar sent before
- * (a real list with nothing to show), else undefined. Records what it returns.
+ * TodoWrite / TaskCreate / TaskUpdate progress to send for this call: a changed one, `null` to clear a bar
+ * sent before (a real list or task set with nothing to show), else undefined. Records what it returns.
  */
-function nextProgress(office: Office, row: string, e: { tool: string }, failed: boolean) {
-  if (e.tool !== 'TodoWrite' || failed) return undefined
-  const todo = todoProgress(e)
+function nextProgress(office: Office, row: string, e: { tool: string }, ran: { result?: unknown } | undefined, failed: boolean) {
+  const isTask = e.tool === 'TaskCreate' || e.tool === 'TaskUpdate'
+  if ((e.tool !== 'TodoWrite' && !isTask) || failed) return undefined
+  let book: Map<string, TaskRec> | undefined
+  let hadTasks = false
+  if (isTask) {
+    book = office.tasks.get(row) ?? new Map<string, TaskRec>()
+    hadTasks = book.size > 0
+    office.tasks.set(row, book)
+  }
+  const todo = book ? taskProgress(book, e.tool, e, ran?.result) : todoProgress(e)
   let progress: Progress | null | undefined
   if (todo !== undefined) {
     if (!sameProgress(office.progress.get(row), todo)) progress = todo
-  } else if (hasTodoList(e) && office.progress.has(row)) {
+  } else if ((book !== undefined ? hadTasks || book.size > 0 : hasTodoList(e)) && office.progress.has(row)) {
     progress = null
   }
   if (progress === null) office.progress.delete(row)
@@ -178,6 +186,7 @@ function forgetSession(office: Office) {
   office.sessionId = undefined
   office.spawned.clear()
   office.progress.clear()
+  office.tasks.clear()
   office.sentMeter = {}
 }
 
@@ -236,7 +245,7 @@ export const register: Register = on => {
     const ran = answered ?? (await next(e).finally(() => (question !== undefined ? quietly(setDecision($, null)) : undefined)))
     if (answered !== undefined && question !== undefined) await quietly(setDecision($, null))
     const message = errorOf(e.tool, ran)
-    const progress = nextProgress(office, row, e, message !== undefined)
+    const progress = nextProgress(office, row, e, ran, message !== undefined)
     await emit($, office, 'PostToolUse', e.agentId, { tool: e.tool, file, message, progress, model: modelOf(office, e.agentId) })
     await quietly(setAgent($, row, { status: 'running', tool: undefined, file: undefined, ...(progress !== undefined ? { progress: progress ?? undefined } : {}) }))
     return ran
@@ -291,6 +300,7 @@ export const register: Register = on => {
         message: failed ? 'ERROR: subagent failed' : undefined,
       })
       office.progress.delete(e.agentId)
+      office.tasks.delete(e.agentId)
       await quietly(setAgent($, e.agentId, { status: failed ? 'error' : 'done', tool: undefined, file: undefined, progress: undefined }))
     } else {
       if (e.usage?.model) office.mainModel = e.usage.model

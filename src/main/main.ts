@@ -14,7 +14,7 @@ import { appLog, guardProcess, initDiag } from './diag';
 import { parseFlags } from './flags';
 import { startIngest } from './ingest';
 import { registerIpc } from './ipc';
-import { EventLog, localDate, pruneLogs } from './log';
+import { EventLog } from './log';
 import { Office } from './office';
 import { parseOpacity } from './opacity';
 import { parsePlacement, parsePosition } from './position';
@@ -63,7 +63,7 @@ async function main(): Promise<void> {
 
   const logDir = join(configDir, 'logs');
   const eventLog = new EventLog(logDir);
-  pruneLogs(logDir, localDate(Date.now()));
+  eventLog.prune();
   const rolesPath = join(configDir, 'roles.json');
   const awake = new AwakeManager({ start: (type) => powerSaveBlocker.start(type), stop: (id) => powerSaveBlocker.stop(id) }, { enabled: config.awake !== false });
   const roles = openRoles(rolesPath, () => office.publish());
@@ -130,7 +130,7 @@ async function main(): Promise<void> {
   });
   let crashes: number[] = [];
   win.webContents.on('render-process-gone', (_e, details) => {
-    appLog('error', `overlay: renderer gone (${details.reason})`);
+    appLog('error', `overlay: renderer gone (${details.reason}, exitCode ${details.exitCode})`);
     resetClickThrough(win);
     // did-finish-load restores state; limit retries so a crash loop cannot spin
     const now = Date.now();

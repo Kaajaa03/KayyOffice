@@ -1,5 +1,5 @@
 import { expect, test } from 'claude-code/testing'
-import { todoProgress } from './progress'
+import { taskProgress, todoProgress } from './progress'
 
 const t = (status: unknown, content: unknown = 'x', activeForm?: unknown) => ({ content, status, ...(activeForm === undefined ? {} : { activeForm }) })
 const list = (todos: unknown) => ({ todos })
@@ -55,4 +55,39 @@ test('only the first in_progress item names the current task', () => {
 test('control characters incl. U+2028/U+2029 are removed from current', () => {
   const p = todoProgress(list([t('in_progress', 'a b c\u0085d\u009fe\u0000f\u007fg\nh', undefined)]))
   expect(p).toEqual({ done: 0, total: 1, current: 'abcdefgh' })
+})
+
+// ---------- Task tools (TaskCreate / TaskUpdate) ----------
+
+const create = (book: Map<string, any>, id: unknown, subject: unknown = 's', activeForm?: unknown) =>
+  taskProgress(book, 'TaskCreate', { subject, ...(activeForm === undefined ? {} : { activeForm }) }, { task: { id, subject } })
+const upd = (book: Map<string, any>, taskId: string, rest: object = {}, result: unknown = { success: true }) =>
+  taskProgress(book, 'TaskUpdate', { taskId, ...rest }, result)
+
+test('TaskCreate/TaskUpdate build progress from the task status', () => {
+  const book = new Map()
+  expect(create(book, '1', 'Tests', 'Teste')).toEqual({ done: 0, total: 1 })
+  expect(create(book, '2', 'Doku')).toEqual({ done: 0, total: 2 })
+  expect(upd(book, '1', { status: 'in_progress' })).toEqual({ done: 0, total: 2, current: 'Teste' })
+  expect(upd(book, '1', { status: 'completed' })).toEqual({ done: 1, total: 2 })
+  expect(upd(book, '2', { status: 'in_progress' })).toEqual({ done: 1, total: 2, current: 'Doku' })
+})
+
+test('deleted tasks leave the count; an empty book gives undefined', () => {
+  const book = new Map()
+  create(book, '1')
+  create(book, '2')
+  expect(upd(book, '2', { status: 'deleted' })).toEqual({ done: 0, total: 1 })
+  expect(upd(book, '1', { status: 'deleted' })).toBeUndefined()
+})
+
+test('unknown ids, missing ids, failed updates and other tools change nothing', () => {
+  const book = new Map()
+  create(book, '1')
+  expect(create(book, undefined)).toEqual({ done: 0, total: 1 })
+  expect(upd(book, '9', { status: 'completed' })).toEqual({ done: 0, total: 1 })
+  expect(upd(book, '1', { status: 'completed' }, { success: false })).toEqual({ done: 0, total: 1 })
+  expect(upd(book, '1', { status: 'bogus' })).toEqual({ done: 0, total: 1 })
+  expect(taskProgress(book, 'Bash', { subject: 'x' }, { task: { id: '5' } })).toBeUndefined()
+  expect(book.size).toBe(1)
 })

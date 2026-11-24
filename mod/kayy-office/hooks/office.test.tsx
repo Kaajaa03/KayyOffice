@@ -426,3 +426,52 @@ test('the pane drops "3/7" when the list is cleared', async ($: any, on: any) =>
   expect((await ui.find({ type: 'Text', text: /Haupt-Agent/ }))?.text).not.toMatch(/\d\/\d/)
   await ui.unmount()
 })
+
+// ---------- progress from Task tools ----------
+
+test('TaskCreate/TaskUpdate send progress; the task id comes from the TaskCreate result', async ($: any, on: any) => {
+  let n = 0
+  const { clock, events } = await setup($, on, { toolResult: () => ({ result: { task: { id: String(++n), subject: 's' }, success: true } }) })
+  await $.tool.call({ tool: 'TaskCreate', subject: 'A', description: 'd', activeForm: 'Mache A' })
+  await $.tool.call({ tool: 'TaskCreate', subject: 'B', description: 'd' })
+  await $.tool.call({ tool: 'TaskUpdate', taskId: '1', status: 'in_progress' })
+  await $.tool.call({ tool: 'TaskUpdate', taskId: '1', status: 'in_progress' })
+  await $.tool.call({ tool: 'TaskUpdate', taskId: '1', status: 'completed' })
+  await flush(clock)
+  expect(posts(events).map(e => e.progress)).toEqual([
+    { done: 0, total: 1 },
+    { done: 0, total: 2 },
+    { done: 0, total: 2, current: 'Mache A' },
+    undefined,
+    { done: 1, total: 2 },
+  ])
+})
+
+test('deleting the last task clears the bar once', async ($: any, on: any) => {
+  const { clock, events } = await setup($, on, { toolResult: { result: { task: { id: '1', subject: 's' }, success: true } } })
+  await $.tool.call({ tool: 'TaskCreate', subject: 'A', description: 'd' })
+  await $.tool.call({ tool: 'TaskUpdate', taskId: '1', status: 'deleted' })
+  await $.tool.call({ tool: 'TaskCreate', subject: 'A', description: 'd' })
+  await flush(clock)
+  expect(posts(events).map(e => e.progress)).toEqual([{ done: 0, total: 1 }, null, { done: 0, total: 1 }])
+})
+
+test('the task book survives Stop: a later turn updates and extends the earlier tasks', async ($: any, on: any) => {
+  let n = 0
+  const { clock, events } = await setup($, on, { toolResult: () => ({ result: { task: { id: String(++n), subject: 's' }, success: true } }) })
+  await $.tool.call({ tool: 'TaskCreate', subject: 'A', description: 'd' })
+  await $.turn.complete({ reason: 'answer', answer: '', durationMs: 1, isAborted: false, turnId: 't1' })
+  await $.tool.call({ tool: 'TaskUpdate', taskId: '1', status: 'completed' })
+  await $.tool.call({ tool: 'TaskCreate', subject: 'B', description: 'd' })
+  await flush(clock)
+  const p = posts(events).map(e => e.progress)
+  expect(p.slice(-2)).toEqual([{ done: 1, total: 1 }, { done: 1, total: 2 }])
+})
+
+test('an unknown TaskUpdate id keeps a TodoWrite bar', async ($: any, on: any) => {
+  const { clock, events } = await setup($, on, { toolResult: { result: { success: true } } })
+  await $.tool.call(todos('pending', 'completed'))
+  await $.tool.call({ tool: 'TaskUpdate', taskId: '99', status: 'completed' })
+  await flush(clock)
+  expect(posts(events).map(e => e.progress)).toEqual([{ done: 1, total: 2 }, undefined])
+})

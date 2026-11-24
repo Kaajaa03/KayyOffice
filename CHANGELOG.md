@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.3.5 – 2026-11-24
+- **Nutzungsverlauf:** Tageskosten (USD) und Sessions in `usage.json`, 30 Tage, Anzeige im Einstellungsfenster (7 Tage). Keine Prompts oder Pfade, Session-IDs nur als Hash.
+- **Fortschritt auch mit Task-Tools:** `TaskCreate`/`TaskUpdate` werden wie `TodoWrite` ausgewertet (nur gegen die Typen und Tests geprüft).
+- **Schneller:** Textkürzen per Binärsuche statt linearer Schleife; Log-Aufräumen läuft täglich, nicht nur beim Start.
+- **Diagnose:** Renderer-Abstürze loggen jetzt auch den `exitCode`.
+- **Lizenz:** MIT (`LICENSE`).
+
+## 1.3.4 – 2026-11-24
+- **Frage-Karte:** Optionsbeschreibungen unter dem Label (bis 3 Zeilen, 300 Zeichen), Fragen bleiben 2 Minuten statt 20 Sekunden stehen.
+
+## 1.3.3 – 2026-11-23
+- **Gemeinsame Config** in `%USERPROFILE%\.kayy-office`: Claude Desktop (Store-App) leitet AppData um, App und Mod sahen verschiedene Tokens.
+- Token wird bei Signatur-Fehler neu geladen, Autostart bei jedem Start erneuert, Tray-Eintrag „Neu laden“, Auto-Reload des abgestürzten Renderers, `npm run sync-mod`.
+
 ## 1.3.2 – 2026-11-01
 - **Frage-Karte:** Optionen stehen untereinander in voller Breite, nichts wird mehr abgeschnitten.
 - **Wartebereich:** Schilder in der Lounge werden gestaffelt, statt sich zu überdecken.

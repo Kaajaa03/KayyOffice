@@ -36,11 +36,20 @@ export const measure = (text: string, font: string): number => {
   return w;
 };
 
+/** Largest n in [lo, hi] with `ok(n)` (ok is monotone: true up to some n); lo is the fallback and is never tested. */
+export const largestFit = (lo: number, hi: number, ok: (n: number) => boolean): number => {
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (ok(mid)) lo = mid; else hi = mid - 1;
+  }
+  return lo;
+};
+
 /** Shortens `text` with an ellipsis until it fits `max` css px (keeps at least `min` characters). */
 export const fit = (text: string, font: string, max: number, min = 2): string => {
-  let t = text;
-  while (t.length > min && measure(t, font) > max) t = t.replace(/…$/, '').slice(0, -1) + '…';
-  return t;
+  if (text.length <= min || measure(text, font) <= max) return text;
+  const base = text.replace(/…$/, '');
+  return base.slice(0, largestFit(Math.max(min, 1) - 1, base.length - 1, (n) => measure(base.slice(0, n) + '…', font) <= max)) + '…';
 };
 
 const textCanvas = (key: string, dpr: number, w: number, h: number, paint: (c: Ctx) => void): HTMLCanvasElement =>
