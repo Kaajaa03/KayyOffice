@@ -40,6 +40,9 @@ Fenstergröße = Basisgröße (900 × 460, begrenzt durch die Arbeitsfläche) ×
 - Roster: Das Event `Roster` meldet die verfügbaren Agent-Typen (`roster: [{ type, model? }]`, max. 12). Es erzeugt oder ändert nie einen Agent; der Reducer legt die Liste in `AppState.roster` ab (bleibt nach `SessionEnd`, nicht im JSONL-Log, nicht im Dev-Log). Der Renderer setzt jeden Typ, der gerade nicht arbeitet, als wartende Figur auf Sofa/Sitzsäcke der Lounge (`bench.ts`, 6 Plätze, Rest als „+n“); ein Typ gilt als „im Einsatz“, wenn ein Agent mit `name === type` arbeitet, wartet oder einen Fehler hat. Die Bank kostet keine Schreibtischplätze und hält die Render-Schleife nicht an.
 - Validierung: `src/main/validate.ts` kürzt und prüft jedes Feld (Größen, Steuerzeichen, `progress` 1–99 Aufgaben).
 
+## Nutzungsverlauf
+`src/main/usagelog.ts`: Tageskosten (USD) und Sessions in `usage.json` im Config-Ordner, 30 Tage. Kosten kommen kumulativ je Session, gezählt wird das Delta zum höchsten bekannten Wert; Session-IDs nur als Hash. Schreiben atomar, gedrosselt (5 s) und beim Beenden. Anzeige im Einstellungsfenster (7 Tage).
+
 ## Renderer
 `room.ts` (Layout/Möbel, Bank-Plätze), `bench.ts` (Wartebereich), `footer.ts` (Fußzeile mit Warnstufen), `walk.ts` (Laufwege, reine Zustandsmaschine), `sun.ts` (Sonnenstand aus echter Uhrzeit), `pill.ts`/`pillplace.ts` (Namensschilder ohne Überlappung), `sprites.ts` (prozedurale Pixel-Sprites, gecacht), `card.ts`/`clickguard.ts` (Freigabe-Karte, Klick erst nach Verzögerung, mousedown+mouseup auf demselben Knopf). Alles Pixel-Art aus Rechtecken, keine Bild-Assets.
 

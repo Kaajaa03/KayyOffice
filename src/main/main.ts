@@ -23,6 +23,7 @@ import { AttentionSound } from './sound';
 import { applyRoles, openRoles } from './roles';
 import { parseScale } from './scale';
 import { modConnected, SettingsModel } from './settings';
+import { UsageStore } from './usagelog';
 import { removeLegacyHooks } from './legacy';
 import { createTray, HOTKEY_LABEL } from './tray';
 import { createOverlay, placeOverlay, resizeOverlay, SettingsWindow, showOverlay, toggleOverlay } from './window';
@@ -76,6 +77,7 @@ async function main(): Promise<void> {
   const tray = createTray({ toggle: () => toggleOverlay(win), openSettings: () => settings.open(lang), demo: () => startDemo(DEMO_MS) }, lang);
   const attention = new AttentionSound(() => shell.beep(), config.sound === true);
   const office = new Office({ render, changed: (live) => { awake.update(live); attention.update(live); tray.setStats(officeStats(Object.values(live.agents))); } });
+  const usage = new UsageStore(join(configDir, 'usage.json'));
   const rosterFile = join(configDir, 'roster.json');
   const savedRoster = loadRoster(rosterFile);
   if (savedRoster) office.apply({ ts: Date.now(), sessionId: '', agentId: '', event: 'Roster', cwd: '', roster: savedRoster });
@@ -111,6 +113,7 @@ async function main(): Promise<void> {
     persist: (patch) => updateConfig(configDir, patch),
     modActive: () => modConnected(lastEventAt, Date.now()),
     port: () => port,
+    usage: () => usage.recent(7),
     changed: pushSettings,
   });
   registerIpc({ win, settings, model, queue, office, action: actions.run });
@@ -136,7 +139,7 @@ async function main(): Promise<void> {
   });
   // a second launch (double click) must not look like "nothing happened"
   app.on('second-instance', () => { showOverlay(win); settings.open(lang); });
-  app.on('before-quit', () => { eventLog.flush(); queue.dispose(); });
+  app.on('before-quit', () => { eventLog.flush(); usage.flush(); queue.dispose(); });
   app.on('window-all-closed', () => { /* tray app: keep running */ });
 
   if (flags.demo) {
@@ -144,7 +147,7 @@ async function main(): Promise<void> {
     if (!flags.noCard) void queue.add({ id: 'demo', agentId: flags.demoCount ? `agent${Math.min(3, flags.demoCount)}` : 'reviewer', tool: 'Bash', summary: 'git push --force origin main' });
   } else {
     const server = await startIngest({
-      token: config.token, reloadToken: () => loadConfig(configDir).token, port, rosterFile, eventLog, office, queue, showOverlay: () => showOverlay(win),
+      token: config.token, reloadToken: () => loadConfig(configDir).token, port, rosterFile, eventLog, office, usage, queue, showOverlay: () => showOverlay(win),
       approvalMode: () => approvalMode,
       onEvent: () => { lastEventAt = Date.now(); },
     });

@@ -23,6 +23,7 @@ function make(over: Partial<SettingsDeps> = {}) {
     persist: (patch) => persisted.push(patch),
     modActive: () => false,
     port: () => 47821,
+    usage: () => [],
     changed: () => log.push('changed'),
     ...over,
   };
@@ -35,7 +36,7 @@ describe('SettingsModel.snapshot', () => {
     expect(m.snapshot()).toEqual({
       language: 'de', scale: 1, opacity: 1, placement: 'top-center', approvals: 'risky', awake: true, sound: false,
       autostart: false, autostartAvailable: true, mod: false, port: 47821,
-      version: '1.2.0', hotkey: 'Strg+Alt+O',
+      version: '1.2.0', hotkey: 'Strg+Alt+O', usage: [],
     });
   });
 });

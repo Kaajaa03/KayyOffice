@@ -64,6 +64,11 @@
     button:focus-visible { outline:2px solid var(--text); outline-offset:2px; }
     .btns { display:flex; flex-wrap:wrap; gap:8px; }
     .btns button { flex:1 1 150px; }
+    .usage { list-style:none; margin:0; padding:0; display:grid; gap:4px; }
+    .usage li { display:grid; grid-template-columns:3.2em 1fr auto; gap:10px; align-items:center; font-size:13px; }
+    .usage .bar { height:8px; border-radius:4px; background:var(--line); overflow:hidden; }
+    .usage .bar i { display:block; height:100%; background:var(--gold); }
+    .usage .v { color:var(--dim); font-variant-numeric:tabular-nums; }
     .msg { margin-top:8px; font-size:13px; white-space:pre-wrap; color:var(--green); }
     .msg.err { color:var(--red); }
     .msg:empty { display:none; }
@@ -150,6 +155,12 @@
     <p class="hint" id="autostart-note"></p>
     <label class="switch" data-i18n-title="set.awake.title"><span data-i18n="set.awake"></span><input id="awake" type="checkbox" role="switch" /></label>
     <label class="switch" data-i18n-title="set.sound.title"><span data-i18n="set.sound"></span><input id="sound" type="checkbox" role="switch" /></label>
+  </section>
+
+  <section aria-labelledby="h-usage">
+    <h2 id="h-usage" data-i18n="set.sec.usage"></h2>
+    <ul class="usage" id="usage-list"></ul>
+    <p class="hint" id="usage-empty" data-i18n="set.usage.empty" hidden></p>
   </section>
 
   <section aria-labelledby="h-tools">

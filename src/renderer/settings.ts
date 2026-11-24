@@ -1,5 +1,6 @@
 import { parseLanguage, t } from '../shared/i18n';
 import type { Key, Lang } from '../shared/i18n';
+import { formatCost } from '../shared/model';
 import type { ActionResult, SetResult, SettingsSnapshot } from '../main/settings';
 
 interface KayyApi {
@@ -45,6 +46,28 @@ function renderStatic(): void {
   document.querySelectorAll<HTMLElement>('[data-i18n-title]').forEach((n) => { n.title = t(lang, n.dataset.i18nTitle as Key); });
 }
 
+function renderUsage(rows: SettingsSnapshot['usage']): void {
+  const list = el('usage-list');
+  list.replaceChildren();
+  const max = Math.max(...rows.map((r) => r.usd), 0);
+  el('usage-empty').hidden = max > 0 || rows.some((r) => r.sessions > 0);
+  for (const r of rows) {
+    const li = document.createElement('li');
+    const day = document.createElement('span');
+    day.textContent = new Date(r.day + 'T12:00:00').toLocaleDateString(lang, { weekday: 'short' });
+    const bar = document.createElement('span');
+    bar.className = 'bar';
+    const fill = document.createElement('i');
+    fill.style.width = max > 0 ? `${Math.round((r.usd / max) * 100)}%` : '0';
+    bar.append(fill);
+    const v = document.createElement('span');
+    v.className = 'v';
+    v.textContent = t(lang, 'set.usage.row', { usd: formatCost(r.usd), n: r.sessions });
+    li.append(day, bar, v);
+    list.append(li);
+  }
+}
+
 function render(): void {
   renderStatic();
   if (!snap) return;
@@ -58,6 +81,7 @@ function render(): void {
   el('opacity-out').textContent = percent(snap.opacity);
   setPicked('placement', snap.placement ?? '');
   setPicked('approvals', snap.approvals);
+  renderUsage(snap.usage);
   setStatus('s-mod', t(lang, snap.mod ? 'set.mod.on' : 'set.mod.off'), snap.mod ? 'ok' : '');
   el('mod-hint').hidden = snap.mod;
   setStatus('s-port', t(lang, 'welcome.status.port', { port: snap.port }), 'ok');

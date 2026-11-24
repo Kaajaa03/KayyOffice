@@ -7,6 +7,7 @@ import type { EventLog } from './log';
 import type { Office } from './office';
 import { saveRoster } from './rosterstore';
 import { startServer } from './server';
+import type { UsageStore } from './usagelog';
 
 interface IngestDeps {
   rosterFile: string;
@@ -15,6 +16,7 @@ interface IngestDeps {
   port: number;
   eventLog: EventLog;
   office: Office;
+  usage: UsageStore;
   queue: PermissionQueue;
   approvalMode(): ApprovalMode;
   showOverlay(): void;
@@ -31,6 +33,7 @@ export function startIngest(d: IngestDeps) {
       d.onEvent();
       d.eventLog.append(e);
       d.office.apply(e);
+      if (e.costUsd !== undefined) d.usage.record(e.sessionId, e.costUsd);
       if (e.event === 'Roster' && e.roster) saveRoster(d.rosterFile, e.roster);
     },
     onPermission: (p, signal) => {

@@ -8,6 +8,7 @@ import { parsePlacement } from './position';
 import type { Placement, Point } from './position';
 import { SCALES, stepScale } from './scale';
 import { parseLanguage } from '../shared/i18n';
+import type { UsageRow } from './usagelog';
 import type { Lang } from '../shared/i18n';
 
 export interface SettingsSnapshot {
@@ -24,6 +25,8 @@ export interface SettingsSnapshot {
   port: number;
   version: string;
   hotkey: string;
+  /** Cost and sessions of the last 7 days, oldest first. */
+  usage: UsageRow[];
 }
 
 type SetError = 'unknown' | 'invalid' | 'unavailable' | 'failed';
@@ -51,6 +54,7 @@ export interface SettingsDeps {
   persist(patch: Record<string, unknown>): void;
   modActive(): boolean;
   port(): number;
+  usage(): UsageRow[];
   /** Something changed: push a fresh snapshot to the settings window and refresh the tray. */
   changed(): void;
 }
@@ -75,7 +79,7 @@ export class SettingsModel {
     return {
       ...this.v,
       autostart: this.deps.autostartAvailable && this.deps.getAutostart(), autostartAvailable: this.deps.autostartAvailable,
-      mod: this.deps.modActive(), port: this.deps.port(),
+      mod: this.deps.modActive(), port: this.deps.port(), usage: this.deps.usage(),
       version: this.deps.version, hotkey: this.deps.hotkey,
     };
   }
